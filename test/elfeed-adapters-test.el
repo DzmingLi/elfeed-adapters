@@ -121,6 +121,23 @@
       (elfeed-adapters-fetch feed-url #'ignore)
       (should (elfeed-tagged-p 'saved (elfeed-db-get-entry id))))))
 
+(ert-deftest elfeed-adapters-preserves-source-publication-times ()
+  (let* ((feed-url "adapter:test/source")
+         (timestamp 1700000000)
+         (item '(:guid "dated-entry"
+                 :link "https://example.com/dated"
+                 :title "Dated entry"
+                 :date 1700000000.75
+                 :content "<p>Published earlier.</p>"))
+         (entry (elfeed-adapters--entry feed-url "example.com" item)))
+    (should (= (elfeed-entry-date entry) timestamp))
+    (setf (elfeed-entry-date entry) (float-time))
+    (cl-letf (((symbol-function 'elfeed-db-get-entry)
+               (lambda (_id) entry)))
+      (should (= (elfeed-entry-date
+                  (elfeed-adapters--entry feed-url "example.com" item))
+                 timestamp)))))
+
 (ert-deftest elfeed-adapters-douban-fetches-public-timeline-without-cookies ()
   (require 'elfeed-adapters-douban)
   (let ((elfeed-adapters-request-function

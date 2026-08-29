@@ -169,11 +169,16 @@ URL and returns non-nil adapter parameters on a match.  FETCH is called with
           authors))
 
 (defun elfeed-adapters--date (date)
-  "Normalize DATE to a floating-point Unix timestamp."
+  "Normalize DATE to a value accepted by `elfeed-float-time'.
+
+Elfeed accepts integer Unix timestamps and date strings, but not floating-point
+timestamps.  Preserve strings for Elfeed to parse and truncate numeric values
+to whole seconds."
   (cond
-   ((numberp date) (float date))
-   ((stringp date) (or (elfeed-float-time date) (float-time)))
-   (t (float-time))))
+   ((integerp date) date)
+   ((floatp date) (truncate date))
+   ((stringp date) date)
+   (t nil)))
 
 (defun elfeed-adapters--entry (feed-id namespace item)
   "Create an Elfeed entry for FEED-ID and NAMESPACE from ITEM."
