@@ -25,7 +25,9 @@ Run =make check= before submitting a change.
 * Credentials
 
 Do not add credentials, cookies, or tokens to configuration variables or test
-fixtures.  Adapters requiring authentication should use Emacs =auth-source=.
+fixtures.  Website sessions should be read at request time through
+=browser-cookies= and an explicitly selected profile.  Standalone API tokens
+should use Emacs =auth-source=.
 
 * License
 

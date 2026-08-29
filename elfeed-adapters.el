@@ -4,7 +4,7 @@
 
 ;; Author: Dzming Li <i@dzming.li>
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "29.1") (elfeed "4.0.0"))
+;; Package-Requires: ((emacs "31.1") (elfeed "4.0.0") (plz "0.10-pre") (browser-cookies "0.1.0") (zhihu "0.1.0"))
 ;; Keywords: news, comm, hypermedia
 
 ;; This program is free software: you can redistribute it and/or modify

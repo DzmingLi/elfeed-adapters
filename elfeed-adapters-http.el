@@ -10,6 +10,7 @@
 
 ;;; Code:
 
+(require 'plz)
 (require 'url-http)
 
 (defvar url-http-response-status)
@@ -51,8 +52,23 @@ HEADERS is an alist of additional HTTP request headers."
              (kill-buffer buffer)))))
      nil t t)))
 
+(defun elfeed-adapters-plz-retrieve (url callback &optional headers)
+  "Asynchronously retrieve URL with curl and call CALLBACK with (ERROR BODY).
+
+HEADERS is an alist of additional HTTP request headers."
+  (condition-case error
+      (plz 'get url
+        :headers headers
+        :as 'string
+        :then (lambda (body) (funcall callback nil body))
+        :else (lambda (request-error)
+                (funcall callback request-error nil))
+        :connect-timeout 30
+        :timeout 60)
+    (error (funcall callback error nil))))
+
 (defcustom elfeed-adapters-request-function
-  #'elfeed-adapters-url-retrieve
+  #'elfeed-adapters-plz-retrieve
   "Function used to retrieve adapter resources.
 
 The function receives URL, CALLBACK, and optional HEADERS.  CALLBACK receives
@@ -62,7 +78,11 @@ The function receives URL, CALLBACK, and optional HEADERS.  CALLBACK receives
 
 (defun elfeed-adapters-request (url callback &optional headers)
   "Retrieve URL and call CALLBACK with (ERROR BODY), passing HEADERS."
-  (funcall elfeed-adapters-request-function url callback headers))
+  (let ((headers (if (assoc-string "User-Agent" headers t)
+                     headers
+                   (cons (cons "User-Agent" elfeed-adapters-user-agent)
+                         headers))))
+    (funcall elfeed-adapters-request-function url callback headers)))
 
 (provide 'elfeed-adapters-http)
 ;;; elfeed-adapters-http.el ends here

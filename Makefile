@@ -14,6 +14,10 @@ compile:
 	  -L . \
 	  -f batch-byte-compile \
 	  elfeed-adapters.el \
-	  elfeed-adapters-http.el
+	  elfeed-adapters-http.el \
+	  elfeed-adapters-douban.el \
+	  elfeed-adapters-gcores.el \
+	  elfeed-adapters-netease-music.el \
+	  elfeed-adapters-zhihu.el
 
 check: compile test

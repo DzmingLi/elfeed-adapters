@@ -1,5 +1,48 @@
 {
   "nodes": {
+    "emacs-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "nixpkgs-stable": "nixpkgs-stable"
+      },
+      "locked": {
+        "lastModified": 1788033904,
+        "narHash": "sha256-en4bDF9H12xTgIel7pngMyggbmRintQEj0I2OnXkD9w=",
+        "owner": "nix-community",
+        "repo": "emacs-overlay",
+        "rev": "682c8861b52019d12d38c065c59a2661b7638143",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "emacs-overlay",
+        "type": "github"
+      }
+    },
+    "emacs-overlay_2": {
+      "inputs": {
+        "nixpkgs": [
+          "nur-dzming",
+          "nixpkgs"
+        ],
+        "nixpkgs-stable": "nixpkgs-stable_2"
+      },
+      "locked": {
+        "lastModified": 1787979720,
+        "narHash": "sha256-HlZp8BnRkHxx7p7fcCeW67/VYzjJAzyFRmrvZqiISEU=",
+        "owner": "nix-community",
+        "repo": "emacs-overlay",
+        "rev": "0f8471b870c51c3ed6dcd09c01e88bb0f790da01",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "emacs-overlay",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1787736819,
@@ -16,9 +59,64 @@
         "type": "github"
       }
     },
+    "nixpkgs-stable": {
+      "locked": {
+        "lastModified": 1787848966,
+        "narHash": "sha256-7gDpu5hpq0rOYnYMcOWqSzquK4HA/xU8Xf3CjUBOOJA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d57af924f160a5084293c71c2043f058bd1cdb60",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-26.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-stable_2": {
+      "locked": {
+        "lastModified": 1787848966,
+        "narHash": "sha256-7gDpu5hpq0rOYnYMcOWqSzquK4HA/xU8Xf3CjUBOOJA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d57af924f160a5084293c71c2043f058bd1cdb60",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-26.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nur-dzming": {
+      "inputs": {
+        "emacs-overlay": "emacs-overlay_2",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788040698,
+        "narHash": "sha256-h/CqVrA0Y+HuODzMakUUe05Whcr15OuompI0oQlk5x4=",
+        "owner": "DzmingLi",
+        "repo": "nur-packages",
+        "rev": "874ebe5539af15983fee7d6150993dd53094ac16",
+        "type": "github"
+      },
+      "original": {
+        "owner": "DzmingLi",
+        "repo": "nur-packages",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "emacs-overlay": "emacs-overlay",
+        "nixpkgs": "nixpkgs",
+        "nur-dzming": "nur-dzming"
       }
     }
   },

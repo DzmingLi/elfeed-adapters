@@ -7,11 +7,20 @@ Each adapter uses Elfeed's public fetch extension point, normalizes remote data,
 and inserts native entries through =elfeed-db-add=.  Existing entry tags are
 preserved when an adapter refreshes content.
 
-* Status
+* Included adapters
 
-This project is an early core implementation.  It provides automatic site
-module loading, shared HTTP helpers, and a normalized entry contract.  Site
-adapters can be added independently as top-level libraries.
+| Site | Adapter URL | Authentication |
+|------+-------------+----------------|
+| Zhihu articles | =adapter+zhihu://posts/people/USER= | Browser cookies |
+| Zhihu answers | =adapter+zhihu://answers/USER= | Browser cookies |
+| Douban broadcasts | =adapter+douban://people/USER/status= | None |
+| GCORES talks | =adapter+gcores://users/USER/talks= | None |
+| NetEase Music events | =adapter+netease-music://user/events/USER= | None |
+
+Douban URLs accept the optional =filterout_title= query parameter as a regular
+expression.  NetEase Music song shares include the official outchain player,
+song metadata, cover art, and a visible play link for readers such as SHR that
+do not render iframes.
 
 * Installation
 
@@ -19,6 +28,9 @@ Add the repository and its root directory to =load-path=, then enable the core:
 
 #+begin_src emacs-lisp
 (require 'elfeed-adapters)
+
+(setq elfeed-adapters-zhihu-profile-directory
+      (expand-file-name "mozilla/firefox/default" "~/.config/"))
 
 (elfeed-adapters-mode 1)
 #+end_src
