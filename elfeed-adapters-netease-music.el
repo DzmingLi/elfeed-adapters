@@ -37,9 +37,6 @@
                        (plist-get song :artists) " / "))
            (album (plist-get song :album))
            (album-name (plist-get album :name))
-           (cover (elfeed-adapters-netease-music--https
-                   (or (plist-get album :picUrl)
-                       (plist-get album :blurPicUrl))))
            (song-url (format "https://music.163.com/#/song?id=%s" id))
            (player-url
             (format
@@ -47,10 +44,6 @@
              id)))
       (concat
        "<div class=\"netease-music-player\">"
-       (when cover
-         (format
-          "<p><a href=\"%s\"><img src=\"%s\" width=\"96\" alt=\"%s\"></a></p>"
-          song-url (xml-escape-string cover) (xml-escape-string name)))
        (format "<p><strong>%s</strong>%s%s</p>"
                (xml-escape-string name)
                (if (string-empty-p artists) ""

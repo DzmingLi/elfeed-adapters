@@ -196,6 +196,9 @@
       (should (equal (plist-get item :title) "分享单曲"))
       (should (string-match-p "云村正文" (plist-get item :content)))
       (should (string-match-p "测试歌曲" (plist-get item :content)))
+      (should (string-match-p "测试音乐人" (plist-get item :content)))
+      (should (string-match-p "测试专辑" (plist-get item :content)))
+      (should-not (string-match-p "album.jpg" (plist-get item :content)))
       (should (string-match-p "outchain/player" (plist-get item :content)))
       (should (string-match-p "▶ 在网易云音乐播放"
                               (plist-get item :content))))))
