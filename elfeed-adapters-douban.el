@@ -25,11 +25,17 @@
              (group (+ digit)) "/status"
              (optional "?" (group (* nonl))) string-end)
          url)
-    (let* ((query (and (match-string 2 url)
-                       (url-parse-query-string (match-string 2 url))))
+    ;; `url-parse-query-string' changes match data, so save both captures
+    ;; before parsing the query.
+    (let* ((user-id (match-string 1 url))
+           (query-string (match-string 2 url))
+           (query (and query-string
+                       (url-parse-query-string query-string)))
            (filter (cadr (assoc "filterout_title" query))))
-      (list :user-id (match-string 1 url)
-            :filter-title (and filter (url-unhex-string filter))))))
+      (list :user-id user-id
+            :filter-title
+            (and filter
+                 (decode-coding-string (url-unhex-string filter) 'utf-8))))))
 
 (defun elfeed-adapters-douban--image-html (image)
   "Render IMAGE plist as HTML."

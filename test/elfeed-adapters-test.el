@@ -156,6 +156,13 @@
       (should (string-match-p "第一行<br>第二行"
                               (plist-get item :content))))))
 
+(ert-deftest elfeed-adapters-douban-preserves-user-id-with-query-parameters ()
+  (should
+   (equal
+    (elfeed-adapters-douban--match
+     "adapter:douban/people/215524359/status?filterout_title=%E6%83%B3%E8%AF%BB%3A")
+    '(:user-id "215524359" :filter-title "想读:"))))
+
 (ert-deftest elfeed-adapters-gcores-parses-rich-content ()
   (require 'elfeed-adapters-gcores)
   (let ((elfeed-adapters-request-function
