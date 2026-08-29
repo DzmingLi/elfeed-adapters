@@ -61,12 +61,14 @@ It must eventually call the callback with (ERROR RESULT)."
 An URL beginning with adapter+SITE:// maps to the feature and library
 `elfeed-adapters-SITE'.  Return non-nil when URL is not an adapter URL or the
 corresponding feature was loaded successfully."
-  (if-let* ((site (elfeed-adapters--site-from-url url))
-            (feature (intern (concat "elfeed-adapters-" site)))
-            (loaded (or (featurep feature) (require feature nil t))))
-      (let ((register (intern (concat (symbol-name feature) "-register"))))
-        (when (fboundp register)
-          (funcall register))
+  (if-let* ((site (elfeed-adapters--site-from-url url)))
+      (let* ((feature (intern (concat "elfeed-adapters-" site)))
+             (loaded (or (featurep feature) (require feature nil t))))
+        (when loaded
+          (let ((register
+                 (intern (concat (symbol-name feature) "-register"))))
+            (when (fboundp register)
+              (funcall register))))
         loaded)
     t))
 

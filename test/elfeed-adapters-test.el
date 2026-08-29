@@ -58,6 +58,15 @@
       (lambda (_status) (setq callback-called t))))
     (should-not callback-called)))
 
+(ert-deftest elfeed-adapters-reports-a-missing-site-module ()
+  (let ((elfeed-adapters--registry nil)
+        status)
+    (should
+     (elfeed-adapters-fetch
+      "adapter+missing-test-site://source"
+      (lambda (value) (setq status value))))
+    (should (eq status :error))))
+
 (ert-deftest elfeed-adapters-preserves-entry-tags-on-refresh ()
   (elfeed-adapters-test--with-database
     (let* ((feed-url "native:test")
