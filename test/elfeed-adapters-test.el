@@ -158,7 +158,12 @@
           (truncate
            (float-time (date-to-time "2026-08-30 08:00:00 +0800")))))
       (should (string-match-p "第一行<br>第二行"
-                              (plist-get item :content))))))
+                              (plist-get item :content)))
+      (should (string-match-p "卡片第一行<br>卡片第二行"
+                              (plist-get item :content)))
+      (should-not (string-match-p "<strong></strong>"
+                                  (plist-get item :content)))
+      (should-not (string-match-p "《》" (plist-get item :title))))))
 
 (ert-deftest elfeed-adapters-douban-preserves-user-id-with-query-parameters ()
   (should

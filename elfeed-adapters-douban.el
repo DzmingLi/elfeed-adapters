@@ -53,6 +53,14 @@
               value))
     (truncate (float-time (date-to-time (concat value " +0800"))))))
 
+(defun elfeed-adapters-douban--text-html (text)
+  "Escape Douban plain TEXT and preserve its source line breaks."
+  (replace-regexp-in-string
+   "\n" "<br>"
+   (xml-escape-string
+    (replace-regexp-in-string "\r\n?" "\n" (or text "")))
+   t t))
+
 (defun elfeed-adapters-douban--status-html (status)
   "Render a Douban STATUS plist as compact HTML."
   (let ((text (or (plist-get status :text) ""))
@@ -61,9 +69,7 @@
         (reshared (or (plist-get status :reshared_status)
                       (plist-get status :parent_status))))
     (concat
-     (format "<p>%s</p>"
-             (replace-regexp-in-string
-              "\n" "<br>" (xml-escape-string text) t t))
+     (format "<p>%s</p>" (elfeed-adapters-douban--text-html text))
      (mapconcat #'elfeed-adapters-douban--image-html images "")
      (when card
        (let ((title (plist-get card :title))
@@ -71,14 +77,15 @@
              (subtitle (plist-get card :subtitle)))
          (concat
           "<blockquote>"
-          (when title
+          (when (and title (not (string-empty-p title)))
             (if url
                 (format "<p><a href=\"%s\"><strong>%s</strong></a></p>"
                         (xml-escape-string url) (xml-escape-string title))
               (format "<p><strong>%s</strong></p>"
                       (xml-escape-string title))))
           (when subtitle
-            (format "<p>%s</p>" (xml-escape-string subtitle)))
+            (format "<p>%s</p>"
+                    (elfeed-adapters-douban--text-html subtitle)))
           (when-let* ((image (plist-get card :image)))
             (elfeed-adapters-douban--image-html image))
           "</blockquote>")))
@@ -98,7 +105,8 @@
     (string-trim
      (format "%s %s: %s%s"
              name activity
-             (if-let* ((card-title (plist-get card :title)))
+             (if-let* ((card-title (plist-get card :title))
+                       ((not (string-empty-p card-title))))
                  (format "《%s》" card-title)
                "")
              text))))
