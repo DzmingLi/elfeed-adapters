@@ -18,6 +18,8 @@ compile:
 	  elfeed-adapters-douban.el \
 	  elfeed-adapters-gcores.el \
 	  elfeed-adapters-netease-music.el \
+	  elfeed-adapters-telegram.el \
+	  elfeed-adapters-theatlantic.el \
 	  elfeed-adapters-zhihu.el
 
 check: compile test

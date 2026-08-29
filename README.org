@@ -13,7 +13,7 @@ preserved when an adapter refreshes content.
 |------+-------------+----------------|
 | Zhihu articles | =adapter:zhihu/posts/people/USER= | Browser cookies |
 | Zhihu answers | =adapter:zhihu/answers/USER= | Browser cookies |
-| Douban broadcasts | =adapter:douban/people/USER/status= | None |
+| Douban broadcasts | =adapter:douban/people/USER/status= | Browser cookies for full personal topics |
 | GCORES talks | =adapter:gcores/users/USER/talks= | None |
 | NetEase Music events | =adapter:netease-music/user/events/USER= | None |
 | Telegram channels | =adapter:telegram/channel/CHANNEL= | None |
@@ -36,6 +36,10 @@ Add the repository and its root directory to =load-path=, then enable the core:
 (require 'elfeed-adapters)
 
 (setq elfeed-adapters-zhihu-profile-directory
+      (expand-file-name "mozilla/firefox/default" "~/.config/"))
+
+(setq elfeed-adapters-douban-browser 'firefox
+      elfeed-adapters-douban-profile-directory
       (expand-file-name "mozilla/firefox/default" "~/.config/"))
 
 (elfeed-adapters-mode 1)

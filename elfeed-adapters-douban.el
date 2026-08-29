@@ -5,18 +5,38 @@
 
 ;;; Commentary:
 
-;; Consume the public Douban mobile timeline API directly.  This adapter does
-;; not read browser cookies.
+;; Consume the public Douban mobile timeline API directly.  When a broadcast
+;; links to a personal topic, use the configured browser session to replace
+;; the API's truncated card subtitle with the full web article.
 
 ;;; Code:
 
+(require 'browser-cookies)
+(require 'dom)
 (require 'json)
+(require 'seq)
 (require 'subr-x)
 (require 'url-parse)
 (require 'url-util)
 (require 'xml)
 (require 'elfeed-adapters)
 (require 'elfeed-adapters-http)
+
+(defgroup elfeed-adapters-douban nil
+  "Douban sources for Elfeed Adapters."
+  :group 'elfeed-adapters
+  :prefix "elfeed-adapters-douban-")
+
+(defcustom elfeed-adapters-douban-browser 'firefox
+  "Browser backend used to read the Douban session."
+  :type '(choice (const firefox) (const chromium) (const chrome)
+                 (const brave) (const edge) (const vivaldi))
+  :group 'elfeed-adapters-douban)
+
+(defcustom elfeed-adapters-douban-profile-directory nil
+  "Explicit browser profile directory containing the Douban session."
+  :type '(choice (const :tag "Not configured" nil) directory)
+  :group 'elfeed-adapters-douban)
 
 (defun elfeed-adapters-douban--match (url)
   "Return parameters when URL is a supported Douban adapter URL."
@@ -61,6 +81,70 @@
     (replace-regexp-in-string "\r\n?" "\n" (or text "")))
    t t))
 
+(defun elfeed-adapters-douban--topic-url (status)
+  "Return the personal-topic web URL linked by STATUS, if any."
+  (let* ((card (plist-get status :card))
+         (url (plist-get card :url)))
+    (when (and (equal (plist-get card :type) "topic")
+               (stringp url)
+               (string-match-p
+                (rx string-start "https://www.douban.com/topic/" (+ digit) "/")
+                url))
+      url)))
+
+(defun elfeed-adapters-douban--headers (url)
+  "Build browser-authenticated headers for Douban URL."
+  (when-let* ((cookie
+               (browser-cookies-header
+                url :browser elfeed-adapters-douban-browser
+                :profile-directory elfeed-adapters-douban-profile-directory)))
+    `(("Cookie" . ,cookie)
+      ("Referer" . "https://www.douban.com/"))))
+
+(defun elfeed-adapters-douban--extract-topic-html (html)
+  "Extract the full personal-topic body from Douban HTML."
+  (with-temp-buffer
+    (insert html)
+    (let* ((document (libxml-parse-html-region (point-min) (point-max)))
+           (content (car (dom-by-class document "topic-richtext"))))
+      (when content
+        (with-temp-buffer
+          (dom-print content)
+          (buffer-string))))))
+
+(defun elfeed-adapters-douban--enrich-topics (wrappers callback)
+  "Fetch full personal-topic bodies in WRAPPERS, then call CALLBACK.
+
+Failure to expand an individual topic leaves its API subtitle intact."
+  (let* ((jobs
+          (delq nil
+                (mapcar
+                 (lambda (wrapper)
+                   (when-let* ((status (plist-get wrapper :status))
+                               (topic-url
+                                (elfeed-adapters-douban--topic-url status))
+                               (headers
+                                (elfeed-adapters-douban--headers topic-url)))
+                     (list status topic-url headers)))
+                 wrappers)))
+         (pending (length jobs)))
+    (if (zerop pending)
+        (funcall callback wrappers)
+      (dolist (job jobs)
+        (pcase-let ((`(,status ,topic-url ,headers) job))
+        (elfeed-adapters-request
+         topic-url
+         (lambda (error body)
+           (unless error
+             (when-let* ((full-html
+                          (elfeed-adapters-douban--extract-topic-html body)))
+               (let ((card (plist-get status :card)))
+                 (setq card (plist-put card :full-html full-html))
+                 (plist-put status :card card))))
+           (when (zerop (cl-decf pending))
+             (funcall callback wrappers)))
+         headers))))))
+
 (defun elfeed-adapters-douban--status-html (status)
   "Render a Douban STATUS plist as compact HTML."
   (let ((text (or (plist-get status :text) ""))
@@ -74,7 +158,8 @@
      (when card
        (let ((title (plist-get card :title))
              (url (plist-get card :url))
-             (subtitle (plist-get card :subtitle)))
+             (subtitle (plist-get card :subtitle))
+             (full-html (plist-get card :full-html)))
          (concat
           "<blockquote>"
           (when (and title (not (string-empty-p title)))
@@ -83,9 +168,11 @@
                         (xml-escape-string url) (xml-escape-string title))
               (format "<p><strong>%s</strong></p>"
                       (xml-escape-string title))))
-          (when subtitle
-            (format "<p>%s</p>"
-                    (elfeed-adapters-douban--text-html subtitle)))
+          (if full-html
+              full-html
+            (when subtitle
+              (format "<p>%s</p>"
+                      (elfeed-adapters-douban--text-html subtitle))))
           (when-let* ((image (plist-get card :image)))
             (elfeed-adapters-douban--image-html image))
           "</blockquote>")))
@@ -151,22 +238,26 @@
                     (wrappers (seq-remove
                                (lambda (item) (plist-get item :deleted))
                                (plist-get payload :items)))
-                    (items (mapcar #'elfeed-adapters-douban--item wrappers))
-                    (items (if filter
-                               (seq-remove
-                                (lambda (item)
-                                  (string-match-p filter
-                                                  (plist-get item :title)))
-                                items)
-                             items))
                     (first-status (plist-get (car wrappers) :status))
                     (author (plist-get first-status :author))
                     (name (or (plist-get author :name) user-id)))
-               (funcall callback nil
-                        (list :title (format "豆瓣广播 - %s" name)
-                              :namespace "douban.com"
-                              :authors (list name)
-                              :items items)))
+               (elfeed-adapters-douban--enrich-topics
+                wrappers
+                (lambda (enriched)
+                  (let* ((items (mapcar #'elfeed-adapters-douban--item enriched))
+                         (items
+                          (if filter
+                              (seq-remove
+                               (lambda (item)
+                                 (string-match-p filter
+                                                 (plist-get item :title)))
+                               items)
+                            items)))
+                    (funcall callback nil
+                             (list :title (format "豆瓣广播 - %s" name)
+                                   :namespace "douban.com"
+                                   :authors (list name)
+                                   :items items))))))
            (error (funcall callback parse-error nil)))))
      '(("Referer" . "https://m.douban.com/")))))
 

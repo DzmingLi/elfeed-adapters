@@ -172,6 +172,37 @@
      "adapter:douban/people/215524359/status?filterout_title=%E6%83%B3%E8%AF%BB%3A")
     '(:user-id "215524359" :filter-title "想读:"))))
 
+(ert-deftest elfeed-adapters-douban-expands-personal-topic-with-browser-cookies ()
+  (require 'elfeed-adapters-douban)
+  (let ((elfeed-adapters-douban-profile-directory "/explicit/firefox/profile")
+        (wrapper
+         '(:status
+           (:id "101" :text "" :card
+            (:type "topic"
+             :url "https://www.douban.com/topic/498511065/"
+             :subtitle "截断摘要…"))))
+        result)
+    (cl-letf (((symbol-function 'browser-cookies-header)
+               (lambda (url &rest arguments)
+                 (should (equal url "https://www.douban.com/topic/498511065/"))
+                 (should (equal (plist-get arguments :profile-directory)
+                                "/explicit/firefox/profile"))
+                 "dbcl2=test"))
+              (elfeed-adapters-request-function
+               (lambda (_url callback headers)
+                 (should (equal (cdr (assoc-string "Cookie" headers t))
+                                "dbcl2=test"))
+                 (funcall callback nil
+                          (elfeed-adapters-test--fixture
+                           "douban/personal-topic.html")))))
+      (elfeed-adapters-douban--enrich-topics
+       (list wrapper) (lambda (value) (setq result value))))
+    (let ((html (elfeed-adapters-douban--status-html
+                 (plist-get (car result) :status))))
+      (should (string-match-p "完整正文" html))
+      (should (string-match-p "与自己，与外界" html))
+      (should-not (string-match-p "截断摘要" html)))))
+
 (ert-deftest elfeed-adapters-gcores-parses-rich-content ()
   (require 'elfeed-adapters-gcores)
   (let ((elfeed-adapters-request-function
