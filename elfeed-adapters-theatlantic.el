@@ -6,7 +6,9 @@
 ;;; Commentary:
 
 ;; Keep using The Atlantic's official full-content author feeds, but enrich
-;; their entries with the lead image advertised by the article page.
+;; their entries with the lead image advertised by the article page.  Convert
+;; Atlantic-specific drop-cap sections to portable HTML separators that SHR
+;; and Org-oriented readers can display without the site's CSS.
 
 ;;; Code:
 
@@ -44,6 +46,42 @@
    (xml-escape-string image-url)
    (xml-escape-string (or (elfeed-entry-title entry) "The Atlantic"))))
 
+(defun elfeed-adapters-theatlantic--section-html (html)
+  "Make Atlantic drop-cap sections in HTML visible to simple readers.
+
+The first drop-cap paragraph is the article opening.  Prepend an HTML
+horizontal rule to each later one, corresponding to Org's `-----' separator,
+and render the site's small-caps span as portable strong emphasis."
+  (let ((first t)
+        (result (or html "")))
+    (setq result
+          (replace-regexp-in-string
+           "<p class=\"dropcap\">"
+           (lambda (opening)
+             (if first
+                 (progn (setq first nil) opening)
+               (concat "<hr>" opening)))
+           result t t))
+    (setq result
+          (replace-regexp-in-string
+           "<span class=\"smallcaps\">\\([^<]*\\)</span>"
+           "<strong>\\1</strong>"
+           result t))
+    result))
+
+(defun elfeed-adapters-theatlantic--normalize-entry (entry)
+  "Apply portable Atlantic section markup to ENTRY.
+
+Return non-nil when the stored content changed."
+  (unless (elfeed-meta entry :elfeed-adapters-theatlantic-sections)
+    (let* ((content (or (elfeed-deref (elfeed-entry-content entry)) ""))
+           (normalized
+            (elfeed-adapters-theatlantic--section-html content)))
+      (unless (equal content normalized)
+        (setf (elfeed-entry-content entry) (elfeed-ref normalized)))
+      (setf (elfeed-meta entry :elfeed-adapters-theatlantic-sections) t)
+      (not (equal content normalized)))))
+
 (defun elfeed-adapters-theatlantic--refresh-visible-entry (entry)
   "Refresh Elfeed buffers after enriching ENTRY."
   (when-let* ((buffer (get-buffer "*elfeed-search*")))
@@ -62,9 +100,14 @@
   "Asynchronously add The Atlantic lead image to ENTRY."
   (let ((id (elfeed-entry-id entry)))
     (when (and (elfeed-adapters-theatlantic--entry-p entry)
-               (eq (elfeed-entry-content-type entry) 'html)
-               (not (elfeed-meta entry :elfeed-adapters-theatlantic-image))
-               (not (gethash id elfeed-adapters-theatlantic--pending)))
+               (eq (elfeed-entry-content-type entry) 'html))
+      (when (elfeed-adapters-theatlantic--normalize-entry entry)
+        (elfeed-db-set-update-time)
+        (elfeed-db-save)
+        (elfeed-adapters-theatlantic--refresh-visible-entry entry))
+      (when (and
+             (not (elfeed-meta entry :elfeed-adapters-theatlantic-image))
+             (not (gethash id elfeed-adapters-theatlantic--pending)))
       (puthash id t elfeed-adapters-theatlantic--pending)
       (elfeed-adapters-request
        (elfeed-entry-link entry)
@@ -96,7 +139,7 @@
                        'missing)
                  (elfeed-db-set-update-time)
                  (elfeed-db-save)))
-           (remhash id elfeed-adapters-theatlantic--pending)))))))
+           (remhash id elfeed-adapters-theatlantic--pending))))))))
 
 ;;;###autoload
 (defun elfeed-adapters-theatlantic-backfill ()
@@ -105,8 +148,10 @@
   (let ((count 0))
     (with-elfeed-db-visit (entry _feed)
       (when (and (elfeed-adapters-theatlantic--entry-p entry)
-                 (not (elfeed-meta
-                       entry :elfeed-adapters-theatlantic-image)))
+                 (or (not (elfeed-meta
+                           entry :elfeed-adapters-theatlantic-image))
+                     (not (elfeed-meta
+                           entry :elfeed-adapters-theatlantic-sections))))
         (setq count (1+ count))
         (elfeed-adapters-theatlantic--enrich entry)))
     (when (called-interactively-p 'interactive)

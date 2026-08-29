@@ -285,6 +285,21 @@
       (elfeed-adapters-theatlantic--image-html entry image-url)
       "<figure class=\"elfeed-adapters-theatlantic-lead\"><img src=\"https://cdn.theatlantic.com/lead.jpg\" alt=\"An Atlantic Article\"></figure>"))))
 
+(ert-deftest elfeed-adapters-theatlantic-makes-dropcap-sections-portable ()
+  (require 'elfeed-adapters-theatlantic)
+  (let* ((html (elfeed-adapters-test--fixture
+                "theatlantic/article.html"))
+         (normalized
+          (elfeed-adapters-theatlantic--section-html html)))
+    (should (= (length (split-string normalized "<hr>")) 3))
+    (should (string-match-p
+             "<p class=\"dropcap\"><strong>Opening words</strong>"
+             normalized))
+    (should (string-match-p
+             "<hr><p class=\"dropcap\"><strong>Second section</strong>"
+             normalized))
+    (should-not (string-match-p "class=\"smallcaps\"" normalized))))
+
 (ert-deftest elfeed-adapters-zhihu-reads-browser-cookies-and-full-content ()
   (require 'elfeed-adapters-zhihu)
   (let ((requests nil)
