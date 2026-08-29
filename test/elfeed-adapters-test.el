@@ -153,6 +153,10 @@
      (lambda (error value) (should-not error) (setq result value)))
     (let ((item (car (plist-get result :items))))
       (should (equal (plist-get item :guid) "douban-status-101"))
+      (should
+       (= (plist-get item :date)
+          (truncate
+           (float-time (date-to-time "2026-08-30 08:00:00 +0800")))))
       (should (string-match-p "第一行<br>第二行"
                               (plist-get item :content))))))
 

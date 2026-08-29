@@ -43,6 +43,16 @@
               (url (plist-get large :url)))
     (format "<p><img src=\"%s\"></p>" (xml-escape-string url))))
 
+(defun elfeed-adapters-douban--date (value)
+  "Parse Douban local timestamp VALUE as China Standard Time."
+  (when (and (stringp value)
+             (string-match-p
+              (rx string-start (= 4 digit) "-" (= 2 digit) "-" (= 2 digit)
+                  " " (= 2 digit) ":" (= 2 digit) ":" (= 2 digit)
+                  string-end)
+              value))
+    (truncate (float-time (date-to-time (concat value " +0800"))))))
+
 (defun elfeed-adapters-douban--status-html (status)
   "Render a Douban STATUS plist as compact HTML."
   (let ((text (or (plist-get status :text) ""))
@@ -108,7 +118,8 @@
     (list :guid (concat "douban-status-" id)
           :title (elfeed-adapters-douban--status-title status)
           :link (car (split-string link "?_i=" t))
-          :date (plist-get status :create_time)
+          :date (elfeed-adapters-douban--date
+                 (plist-get status :create_time))
           :authors (list (or (plist-get author :name) "豆瓣用户"))
           :content (elfeed-adapters-douban--status-html status)
           :content-type 'html)))
