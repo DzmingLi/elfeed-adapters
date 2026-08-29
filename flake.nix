@@ -38,8 +38,7 @@
             emacs --batch -Q -L . \
               --eval '(setq byte-compile-error-on-warn t)' \
               -f batch-byte-compile \
-              elfeed-adapters.el elfeed-adapters-http.el \
-              elfeed-adapters-theatlantic.el
+              elfeed-adapters.el elfeed-adapters-http.el
             touch $out
           '';
         });

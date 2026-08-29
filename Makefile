@@ -14,7 +14,6 @@ compile:
 	  -L . \
 	  -f batch-byte-compile \
 	  elfeed-adapters.el \
-	  elfeed-adapters-http.el \
-	  elfeed-adapters-theatlantic.el
+	  elfeed-adapters-http.el
 
 check: compile test

@@ -9,10 +9,10 @@ preserved when an adapter refreshes content.
 
 * Status
 
-This project is an early, usable MVP.  It currently includes a full-text author
-adapter for The Atlantic.  The official author Atom feed currently supplies
-full article bodies; when an entry contains only a summary, the adapter falls
-back to the article page's embedded data.
+This project is an early core implementation.  The Atlantic prototype was
+removed after verifying that its official author Atom feeds already contain
+full article bodies; ordinary feeds should be subscribed to directly rather
+than wrapped in an adapter.
 
 * Installation
 
@@ -22,14 +22,11 @@ Add the repository and its root directory to =load-path=, then enable the core:
 (require 'elfeed-adapters)
 
 (elfeed-adapters-mode 1)
-
-(add-to-list 'elfeed-feeds
-             "adapter+theatlantic://author/rose-horowitch")
 #+end_src
 
-The adapter is invoked by the normal =elfeed-update= command.  No local HTTP
-port or RSSHub process is involved.  The site module is inferred from the URL
-and loaded automatically.
+Adapters are invoked by the normal =elfeed-update= command.  No local HTTP port
+or feed-generation server is involved.  The site module is inferred from an
+adapter URL and loaded automatically.
 
 * Adapter contract
 

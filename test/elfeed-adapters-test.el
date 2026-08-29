@@ -4,30 +4,6 @@
 
 (require 'ert)
 (require 'elfeed-adapters)
-(require 'elfeed-adapters-theatlantic)
-
-(defconst elfeed-adapters-test--directory
-  (file-name-directory (or load-file-name buffer-file-name)))
-
-(defun elfeed-adapters-test--fixture (relative-path)
-  "Return fixture contents at RELATIVE-PATH."
-  (with-temp-buffer
-    (insert-file-contents
-     (expand-file-name relative-path elfeed-adapters-test--directory))
-    (buffer-string)))
-
-(defun elfeed-adapters-test--request (url callback &optional _headers)
-  "Serve an offline fixture for URL, then invoke CALLBACK."
-  (cond
-   ((string-match-p "/feed/author/test-author/\\'" url)
-    (funcall callback nil
-             (elfeed-adapters-test--fixture
-              "fixtures/theatlantic/author.atom")))
-   ((string= url "https://www.theatlantic.com/test/article/")
-    (funcall callback nil
-             (elfeed-adapters-test--fixture
-              "fixtures/theatlantic/article.html")))
-   (t (funcall callback (format "Unexpected test URL: %s" url) nil))))
 
 (defmacro elfeed-adapters-test--with-database (&rest body)
   "Run BODY with an isolated temporary Elfeed database."
@@ -52,77 +28,45 @@
     (elfeed-adapters-register 'test (lambda (_url) '(one)) #'ignore)
     (elfeed-adapters-register 'test (lambda (_url) '(two)) #'ignore)
     (should (= (length elfeed-adapters--registry) 1))
-    (should (equal (cdr (elfeed-adapters--find "adapter+test://source"))
-                   '(two)))))
+    (should (equal (cdr (elfeed-adapters--find "native:test")) '(two)))))
 
-(ert-deftest elfeed-adapters-theatlantic-matches-author-url ()
+(ert-deftest elfeed-adapters-infers-module-name-from-url ()
   (should
-   (equal
-    (elfeed-adapters-theatlantic--match
-     "adapter+theatlantic://author/rose-horowitch")
-    '(:slug "rose-horowitch")))
+   (equal (elfeed-adapters--site-from-url
+           "adapter+example-site://author/name")
+          "example-site"))
   (should-not
-   (elfeed-adapters-theatlantic--match
-    "https://www.theatlantic.com/author/rose-horowitch/")))
+   (elfeed-adapters--site-from-url "https://example.com/feed.atom")))
 
-(ert-deftest elfeed-adapters-loads-site-module-from-url ()
-  (let ((elfeed-adapters--registry nil))
-    (should
-     (elfeed-adapters--load-for-url
-      "adapter+theatlantic://author/rose-horowitch"))
-    (should
-     (elfeed-adapters--find
-      "adapter+theatlantic://author/rose-horowitch"))))
-
-(ert-deftest elfeed-adapters-theatlantic-keeps-full-atom-content ()
-  (let ((content (concat "<p>" (make-string 600 ?x) "</p>"))
-        request-called)
-    (let ((elfeed-adapters-request-function
-           (lambda (&rest _arguments) (setq request-called t)))
-          result)
-      (elfeed-adapters-theatlantic--enrich-items
-       (list (list :link "https://example.invalid/" :content content))
-       (lambda (items) (setq result items)))
-      (should-not request-called)
-      (should (equal (plist-get (car result) :content) content)))))
-
-(ert-deftest elfeed-adapters-theatlantic-fetches-full-text ()
-  (elfeed-adapters-test--with-database
-    (let* ((feed-url "adapter+theatlantic://author/test-author")
-           (elfeed-feeds (list feed-url))
-           (elfeed-adapters-request-function
-            #'elfeed-adapters-test--request)
-           status)
-      (elfeed-adapters-fetch feed-url (lambda (result) (setq status result)))
-      (should (eq status :success))
-      (let* ((id '("theatlantic.com"
-                   . "https://www.theatlantic.com/test/article/"))
-             (entry (elfeed-db-get-entry id))
-             (content (elfeed-deref (elfeed-entry-content entry))))
-        (should entry)
-        (should (equal (elfeed-entry-title entry)
-                       "Enriched article title"))
-        (should (eq (elfeed-entry-content-type entry) 'html))
-        (should (string-match-p
-                 (regexp-quote
-                  "<figcaption>Illustration by Test Artist</figcaption>")
-                 content))
-        (should (string-match-p
-                 (regexp-quote "<p>First <strong>paragraph</strong>.</p>")
-                 content))
-        (should (string-match-p
-                 (regexp-quote "</figure><p>First") content))
-        (should (equal (plist-get (elfeed-entry-meta entry) :authors)
-                       '((:name "Test Author"))))))))
+(ert-deftest elfeed-adapters-ignores-normal-feed-urls ()
+  (let ((elfeed-adapters--registry nil)
+        callback-called)
+    (should-not
+     (elfeed-adapters-fetch
+      "https://example.com/feed.atom"
+      (lambda (_status) (setq callback-called t))))
+    (should-not callback-called)))
 
 (ert-deftest elfeed-adapters-preserves-entry-tags-on-refresh ()
   (elfeed-adapters-test--with-database
-    (let* ((feed-url "adapter+theatlantic://author/test-author")
+    (let* ((feed-url "native:test")
+           (item-url "https://example.com/article")
            (elfeed-feeds (list feed-url))
-           (elfeed-adapters-request-function
-            #'elfeed-adapters-test--request)
-           (id '("theatlantic.com"
-                 . "https://www.theatlantic.com/test/article/")))
+           (elfeed-adapters--registry nil)
+           (id (cons "example.com" item-url)))
+      (elfeed-adapters-register
+       'test
+       (lambda (url) (and (equal url feed-url) 'matched))
+       (lambda (_url _parameters callback)
+         (funcall callback nil
+                  `(:title "Example"
+                    :namespace "example.com"
+                    :items ((:guid ,item-url
+                             :link ,item-url
+                             :title "Article"
+                             :date "2026-08-30T00:00:00Z"
+                             :content "<p>Full text.</p>"
+                             :content-type html))))))
       (elfeed-adapters-fetch feed-url #'ignore)
       (elfeed-tag (elfeed-db-get-entry id) 'saved)
       (elfeed-adapters-fetch feed-url #'ignore)
