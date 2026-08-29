@@ -31,6 +31,10 @@
 (require 'subr-x)
 
 (declare-function org-link-set-parameters "ol" (type &rest parameters))
+(declare-function rmh-elfeed-org-filter-relevant "elfeed-org" (list))
+
+(defvar rmh-elfeed-org-ignore-tag)
+(defvar elfeed-adapters-mode nil)
 
 (defgroup elfeed-adapters nil
   "Native source adapters for Elfeed."
@@ -53,6 +57,47 @@ It must eventually call the callback with (ERROR RESULT)."
   ;; Teach Org that adapter: links are external links rather than fuzzy links.
   ;; This lets elfeed-org preserve them verbatim when it imports subscriptions.
   (org-link-set-parameters "adapter"))
+
+(defun elfeed-adapters--elfeed-org-filter-relevant (original entries)
+  "Let adapter subscriptions pass elfeed-org's URL filter.
+
+Call ORIGINAL with ENTRIES first, then restore entries whose URL begins with
+`adapter:' unless they carry elfeed-org's ignore tag.  elfeed-org currently
+hard-codes a small set of URL schemes, so registering the Org link type alone
+is not sufficient."
+  (let ((result (funcall original entries))
+        (ignore-name (and (boundp 'rmh-elfeed-org-ignore-tag)
+                          (stringp rmh-elfeed-org-ignore-tag)
+                          rmh-elfeed-org-ignore-tag)))
+    (dolist (entry entries result)
+      (when (and (string-prefix-p "adapter:" (car entry))
+                 (not (and ignore-name
+                           (cl-find ignore-name (cdr entry)
+                                    :test (lambda (name tag)
+                                            (and (symbolp tag)
+                                                 (string= name
+                                                          (symbol-name tag)))))))
+                 (not (member entry result)))
+        (setq result (append result (list entry)))))))
+
+(defun elfeed-adapters--install-elfeed-org-support ()
+  "Install compatibility for adapter subscriptions in elfeed-org."
+  (when (and (fboundp 'rmh-elfeed-org-filter-relevant)
+             (not (advice-member-p
+                   #'elfeed-adapters--elfeed-org-filter-relevant
+                   'rmh-elfeed-org-filter-relevant)))
+    (advice-add 'rmh-elfeed-org-filter-relevant :around
+                #'elfeed-adapters--elfeed-org-filter-relevant)))
+
+(defun elfeed-adapters--remove-elfeed-org-support ()
+  "Remove elfeed-org compatibility installed by Elfeed Adapters."
+  (when (fboundp 'rmh-elfeed-org-filter-relevant)
+    (advice-remove 'rmh-elfeed-org-filter-relevant
+                   #'elfeed-adapters--elfeed-org-filter-relevant)))
+
+(with-eval-after-load 'elfeed-org
+  (when elfeed-adapters-mode
+    (elfeed-adapters--install-elfeed-org-support)))
 
 (defun elfeed-adapters--site-from-url (url)
   "Return the adapter site name encoded in URL, or nil."
@@ -224,8 +269,11 @@ when no adapter accepts URL, allowing Elfeed's normal fetcher to continue."
   :global t
   :group 'elfeed-adapters
   (if elfeed-adapters-mode
-      (add-hook 'elfeed-fetch-functions #'elfeed-adapters-fetch)
-    (remove-hook 'elfeed-fetch-functions #'elfeed-adapters-fetch)))
+      (progn
+        (add-hook 'elfeed-fetch-functions #'elfeed-adapters-fetch)
+        (elfeed-adapters--install-elfeed-org-support))
+    (remove-hook 'elfeed-fetch-functions #'elfeed-adapters-fetch)
+    (elfeed-adapters--remove-elfeed-org-support)))
 
 (provide 'elfeed-adapters)
 ;;; elfeed-adapters.el ends here

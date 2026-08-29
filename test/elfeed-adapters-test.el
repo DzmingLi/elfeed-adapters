@@ -5,6 +5,8 @@
 (require 'ert)
 (require 'elfeed-adapters)
 
+(defvar rmh-elfeed-org-ignore-tag)
+
 (defconst elfeed-adapters-test--directory
   (file-name-directory (or load-file-name buffer-file-name)))
 
@@ -60,6 +62,21 @@
       (should (equal (org-element-property :type link) "adapter"))
       (should (equal (org-element-property :raw-link link)
                      "adapter:zhihu/answers/example")))))
+
+(ert-deftest elfeed-adapters-extends-elfeed-org-url-filter ()
+  (let ((rmh-elfeed-org-ignore-tag "ignore"))
+    (should
+     (equal
+      (elfeed-adapters--elfeed-org-filter-relevant
+       (lambda (entries)
+         (cl-remove-if-not
+          (lambda (entry) (string-prefix-p "https:" (car entry)))
+          entries))
+       '(("https://example.com/feed")
+         ("adapter:zhihu/posts/people/example" zhihu)
+         ("adapter:douban/people/example/status" ignore)))
+      '(("https://example.com/feed")
+        ("adapter:zhihu/posts/people/example" zhihu))))))
 
 (ert-deftest elfeed-adapters-ignores-normal-feed-urls ()
   (let ((elfeed-adapters--registry nil)
