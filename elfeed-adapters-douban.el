@@ -21,7 +21,7 @@
 (defun elfeed-adapters-douban--match (url)
   "Return parameters when URL is a supported Douban adapter URL."
   (when (string-match
-         (rx string-start "adapter+douban://people/"
+         (rx string-start "adapter:douban/people/"
              (group (+ digit)) "/status"
              (optional "?" (group (* nonl))) string-end)
          url)

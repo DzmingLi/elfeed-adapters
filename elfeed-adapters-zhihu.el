@@ -41,14 +41,14 @@
   "Return parameters when URL is a supported Zhihu adapter URL."
   (cond
    ((string-match
-     (rx string-start "adapter+zhihu://posts/"
+     (rx string-start "adapter:zhihu/posts/"
          (group (or "people" "org")) "/"
          (group (+ (not (any "/?#")))) string-end)
      url)
     (list :kind 'posts :user-type (match-string 1 url)
           :user-id (match-string 2 url)))
    ((string-match
-     (rx string-start "adapter+zhihu://answers/"
+     (rx string-start "adapter:zhihu/answers/"
          (group (+ (not (any "/?#")))) string-end)
      url)
     (list :kind 'answers :user-type "people"

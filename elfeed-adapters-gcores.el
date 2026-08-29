@@ -19,7 +19,7 @@
 (defun elfeed-adapters-gcores--match (url)
   "Return parameters when URL names a GCORES user talk source."
   (when (string-match
-         (rx string-start "adapter+gcores://users/"
+         (rx string-start "adapter:gcores/users/"
              (group (+ digit)) "/talks"
              (optional "?" (* nonl)) string-end)
          url)

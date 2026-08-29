@@ -30,6 +30,8 @@
 (require 'elfeed)
 (require 'subr-x)
 
+(declare-function org-link-set-parameters "ol" (type &rest parameters))
+
 (defgroup elfeed-adapters nil
   "Native source adapters for Elfeed."
   :group 'elfeed
@@ -47,18 +49,23 @@ It must eventually call the callback with (ERROR RESULT)."
 (defvar elfeed-adapters--registry nil
   "Registered adapters, in matching order.")
 
+(with-eval-after-load 'org
+  ;; Teach Org that adapter: links are external links rather than fuzzy links.
+  ;; This lets elfeed-org preserve them verbatim when it imports subscriptions.
+  (org-link-set-parameters "adapter"))
+
 (defun elfeed-adapters--site-from-url (url)
   "Return the adapter site name encoded in URL, or nil."
   (when (string-match
-         (rx string-start "adapter+"
-             (group (+ (or lower digit "-"))) "://")
+         (rx string-start "adapter:"
+             (group (+ (or lower digit "-"))) "/")
          url)
     (match-string 1 url)))
 
 (defun elfeed-adapters--load-for-url (url)
   "Load the adapter module named by URL.
 
-An URL beginning with adapter+SITE:// maps to the feature and library
+An URL beginning with adapter:SITE/ maps to the feature and library
 `elfeed-adapters-SITE'.  Return non-nil when URL is not an adapter URL or the
 corresponding feature was loaded successfully."
   (if-let* ((site (elfeed-adapters--site-from-url url)))

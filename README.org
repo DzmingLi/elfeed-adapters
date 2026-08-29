@@ -11,11 +11,11 @@ preserved when an adapter refreshes content.
 
 | Site | Adapter URL | Authentication |
 |------+-------------+----------------|
-| Zhihu articles | =adapter+zhihu://posts/people/USER= | Browser cookies |
-| Zhihu answers | =adapter+zhihu://answers/USER= | Browser cookies |
-| Douban broadcasts | =adapter+douban://people/USER/status= | None |
-| GCORES talks | =adapter+gcores://users/USER/talks= | None |
-| NetEase Music events | =adapter+netease-music://user/events/USER= | None |
+| Zhihu articles | =adapter:zhihu/posts/people/USER= | Browser cookies |
+| Zhihu answers | =adapter:zhihu/answers/USER= | Browser cookies |
+| Douban broadcasts | =adapter:douban/people/USER/status= | None |
+| GCORES talks | =adapter:gcores/users/USER/talks= | None |
+| NetEase Music events | =adapter:netease-music/user/events/USER= | None |
 
 Douban URLs accept the optional =filterout_title= query parameter as a regular
 expression.  NetEase Music song shares include the official outchain player,
@@ -73,7 +73,7 @@ parsing.
 * Adding an adapter
 
 Add one top-level =elfeed-adapters-SITE.el= library.  An
-=adapter+SITE://...= URL makes the core load that library automatically; the
+=adapter:SITE/...= URL makes the core load that library automatically; the
 library then registers itself.  The registry does not need a central edit.
 
 Adapters are modules within the single =elfeed-adapters= package, not separate

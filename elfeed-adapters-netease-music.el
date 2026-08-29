@@ -13,7 +13,7 @@
 (defun elfeed-adapters-netease-music--match (url)
   "Return parameters when URL names a NetEase Music user event source."
   (when (string-match
-         (rx string-start "adapter+netease-music://user/events/"
+         (rx string-start "adapter:netease-music/user/events/"
              (group (+ digit)) string-end)
          url)
     (list :user-id (match-string 1 url))))

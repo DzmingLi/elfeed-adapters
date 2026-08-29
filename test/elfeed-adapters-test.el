@@ -44,10 +44,22 @@
 (ert-deftest elfeed-adapters-infers-module-name-from-url ()
   (should
    (equal (elfeed-adapters--site-from-url
-           "adapter+example-site://author/name")
+           "adapter:example-site/author/name")
           "example-site"))
   (should-not
    (elfeed-adapters--site-from-url "https://example.com/feed.atom")))
+
+(ert-deftest elfeed-adapters-registers-org-link-type ()
+  (require 'org)
+  (with-temp-buffer
+    (org-mode)
+    (insert "[[adapter:zhihu/answers/example]]")
+    (goto-char 3)
+    (let ((link (org-element-context)))
+      (should (eq (org-element-type link) 'link))
+      (should (equal (org-element-property :type link) "adapter"))
+      (should (equal (org-element-property :raw-link link)
+                     "adapter:zhihu/answers/example")))))
 
 (ert-deftest elfeed-adapters-ignores-normal-feed-urls ()
   (let ((elfeed-adapters--registry nil)
@@ -63,7 +75,7 @@
         status)
     (should
      (elfeed-adapters-fetch
-      "adapter+missing-test-site://source"
+      "adapter:missing-test-site/source"
       (lambda (value) (setq status value))))
     (should (eq status :error))))
 
