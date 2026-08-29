@@ -1,0 +1,34 @@
+#+title: Contributing to Elfeed Adapters
+
+Thank you for adding or improving an adapter.
+
+* Scope
+
+Elfeed Adapters is deliberately smaller than a general feed-generation server.
+Contributions should:
+
+- produce native Elfeed entries;
+- use ordinary HTTP requests rather than a headless browser;
+- keep site-specific logic in one =elfeed-adapters-SITE.el= file;
+- avoid databases, web interfaces, and RSS/Atom output layers;
+- handle one failed item without discarding an otherwise valid update;
+- use stable item identifiers so read and saved state survives refreshes.
+
+* Tests
+
+Every adapter must include offline ERT coverage and sanitized fixtures.  Tests
+must not contact live websites.  Fixtures should be as small as possible while
+retaining the source structure the parser depends on.
+
+Run =make check= before submitting a change.
+
+* Credentials
+
+Do not add credentials, cookies, or tokens to configuration variables or test
+fixtures.  Adapters requiring authentication should use Emacs =auth-source=.
+
+* License
+
+Contributions are accepted under AGPL-3.0-or-later.  Code copied or translated
+from another project must have a compatible license and retain all required
+notices.

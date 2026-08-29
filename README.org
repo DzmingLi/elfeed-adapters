@@ -1,0 +1,94 @@
+#+title: Elfeed Adapters
+
+Elfeed Adapters lets [[https://github.com/emacs-elfeed/elfeed][Elfeed]] consume websites and APIs directly, without
+running a feed-generation server or serializing intermediate RSS/Atom XML.
+
+Each adapter uses Elfeed's public fetch extension point, normalizes remote data,
+and inserts native entries through =elfeed-db-add=.  Existing entry tags are
+preserved when an adapter refreshes content.
+
+* Status
+
+This project is an early, usable MVP.  It currently includes a full-text author
+adapter for The Atlantic.  The official author Atom feed currently supplies
+full article bodies; when an entry contains only a summary, the adapter falls
+back to the article page's embedded data.
+
+* Installation
+
+Add the repository and its root directory to =load-path=, then enable the core:
+
+#+begin_src emacs-lisp
+(require 'elfeed-adapters)
+
+(elfeed-adapters-mode 1)
+
+(add-to-list 'elfeed-feeds
+             "adapter+theatlantic://author/rose-horowitch")
+#+end_src
+
+The adapter is invoked by the normal =elfeed-update= command.  No local HTTP
+port or RSSHub process is involved.  The site module is inferred from the URL
+and loaded automatically.
+
+* Adapter contract
+
+Register an adapter with three values:
+
+#+begin_src emacs-lisp
+(elfeed-adapters-register 'example #'example-match #'example-fetch)
+#+end_src
+
+=MATCH= receives a configured feed URL and returns adapter-specific parameters,
+or nil when it does not handle the URL.  =FETCH= receives the URL, those
+parameters, and a callback.  It must eventually call the callback with
+=(ERROR RESULT)=.
+
+A successful result has this shape:
+
+#+begin_src emacs-lisp
+'(:title "Example source"
+  :namespace "example.com"
+  :authors ("Example Author")
+  :items ((:guid "stable-item-id"
+           :title "Entry title"
+           :link "https://example.com/post"
+           :date "2026-08-30T00:00:00Z"
+           :content "<p>Full HTML content.</p>"
+           :content-type html)))
+#+end_src
+
+Core owns Elfeed entry construction, stable IDs, tag preservation, callback
+discipline, and error logging.  Adapters own only source-specific retrieval and
+parsing.
+
+* Adding an adapter
+
+Add one top-level =elfeed-adapters-SITE.el= library.  An
+=adapter+SITE://...= URL makes the core load that library automatically; the
+library then registers itself.  The registry does not need a central edit.
+
+Adapters are modules within the single =elfeed-adapters= package, not separate
+packages.  A genuinely reusable facility, such as reading credentials from a
+browser profile, belongs in a separate package such as =browser-cookies=.
+
+* Development
+
+Run the offline test suite:
+
+#+begin_src shell
+make test
+#+end_src
+
+Or use the reproducible Nix check:
+
+#+begin_src shell
+nix flake check
+#+end_src
+
+Tests must use saved fixtures and must not contact live websites.
+
+* License
+
+Elfeed Adapters is licensed under the GNU Affero General Public License,
+version 3 or later.  See =LICENSE=.

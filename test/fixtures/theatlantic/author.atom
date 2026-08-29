@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Test Author | The Atlantic</title>
+  <link href="https://www.theatlantic.com/author/test-author/" />
+  <entry>
+    <title>Feed title before enrichment</title>
+    <id>https://www.theatlantic.com/test/article/</id>
+    <link rel="alternate" href="https://www.theatlantic.com/test/article/" />
+    <published>2026-08-29T12:00:00Z</published>
+    <summary>Feed fallback summary.</summary>
+  </entry>
+</feed>
