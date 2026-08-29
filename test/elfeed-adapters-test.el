@@ -208,6 +208,29 @@
       (should (string-match-p "▶ 在网易云音乐播放"
                               (plist-get item :content))))))
 
+(ert-deftest elfeed-adapters-telegram-parses-public-channel-messages ()
+  (require 'elfeed-adapters-telegram)
+  (let ((elfeed-adapters-request-function
+         (lambda (url callback _headers)
+           (should (equal url "https://t.me/s/TestChannel"))
+           (funcall callback nil
+                    (elfeed-adapters-test--fixture
+                     "telegram/channel.html"))))
+        result)
+    (elfeed-adapters-telegram--fetch
+     nil '(:channel "TestChannel")
+     (lambda (error value) (should-not error) (setq result value)))
+    (let ((item (car (plist-get result :items))))
+      (should (equal (plist-get result :title) "Telegram - Test Channel"))
+      (should (equal (plist-get item :guid) "telegram-TestChannel-42"))
+      (should (equal (plist-get item :date) "2026-08-30T01:02:03+00:00"))
+      (should (string-match-p "<b>Important update</b>"
+                              (plist-get item :content)))
+      (should (string-match-p "https://cdn.example/photo.jpg"
+                              (plist-get item :content)))
+      (should (string-match-p "Full message with"
+                              (plist-get item :title))))))
+
 (ert-deftest elfeed-adapters-theatlantic-extracts-and-renders-lead-image ()
   (require 'elfeed-adapters-theatlantic)
   (let* ((html (elfeed-adapters-test--fixture

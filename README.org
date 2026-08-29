@@ -16,6 +16,7 @@ preserved when an adapter refreshes content.
 | Douban broadcasts | =adapter:douban/people/USER/status= | None |
 | GCORES talks | =adapter:gcores/users/USER/talks= | None |
 | NetEase Music events | =adapter:netease-music/user/events/USER= | None |
+| Telegram channels | =adapter:telegram/channel/CHANNEL= | None |
 
 The optional =elfeed-adapters-theatlantic-mode= keeps using The Atlantic's
 official full-content author feeds and prepends each article's =og:image= lead
