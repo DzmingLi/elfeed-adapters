@@ -9,10 +9,9 @@ preserved when an adapter refreshes content.
 
 * Status
 
-This project is an early core implementation.  The Atlantic prototype was
-removed after verifying that its official author Atom feeds already contain
-full article bodies; ordinary feeds should be subscribed to directly rather
-than wrapped in an adapter.
+This project is an early core implementation.  It provides automatic site
+module loading, shared HTTP helpers, and a normalized entry contract.  Site
+adapters can be added independently as top-level libraries.
 
 * Installation
 
