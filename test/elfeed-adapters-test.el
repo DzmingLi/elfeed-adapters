@@ -203,6 +203,29 @@
       (should (string-match-p "▶ 在网易云音乐播放"
                               (plist-get item :content))))))
 
+(ert-deftest elfeed-adapters-theatlantic-extracts-and-renders-lead-image ()
+  (require 'elfeed-adapters-theatlantic)
+  (let* ((html (elfeed-adapters-test--fixture
+                "theatlantic/article.html"))
+         (image-url
+          (elfeed-adapters-theatlantic--extract-image html))
+         (entry
+          (elfeed-entry--create
+           :id '("theatlantic.com" . "article")
+           :feed-id "https://www.theatlantic.com/feed/author/example/"
+           :title "An Atlantic Article"
+           :link "https://www.theatlantic.com/example/"
+           :date 1700000000
+           :content "<p>Full text.</p>"
+           :content-type 'html
+           :tags nil
+           :meta nil)))
+    (should (equal image-url "https://cdn.theatlantic.com/lead.jpg"))
+    (should
+     (equal
+      (elfeed-adapters-theatlantic--image-html entry image-url)
+      "<figure class=\"elfeed-adapters-theatlantic-lead\"><img src=\"https://cdn.theatlantic.com/lead.jpg\" alt=\"An Atlantic Article\"></figure>"))))
+
 (ert-deftest elfeed-adapters-zhihu-reads-browser-cookies-and-full-content ()
   (require 'elfeed-adapters-zhihu)
   (let ((requests nil)

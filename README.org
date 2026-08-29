@@ -17,10 +17,15 @@ preserved when an adapter refreshes content.
 | GCORES talks | =adapter:gcores/users/USER/talks= | None |
 | NetEase Music events | =adapter:netease-music/user/events/USER= | None |
 
-Douban URLs accept the optional =filterout_title= query parameter as a regular
-expression.  NetEase Music song shares include the official outchain player,
-song metadata, cover art, and a visible play link for readers such as SHR that
-do not render iframes.
+The optional =elfeed-adapters-theatlantic-mode= keeps using The Atlantic's
+official full-content author feeds and prepends each article's =og:image= lead
+image.  Run =M-x elfeed-adapters-theatlantic-backfill= once to enrich entries
+already present in the database.
+
+Douban URLs accept the optional =filterout_title= query parameter as an Emacs
+regular expression.  NetEase Music song shares include the official outchain
+player, song metadata, and a visible play link for readers such as SHR that do
+not render iframes.
 
 * Installation
 
