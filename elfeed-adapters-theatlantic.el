@@ -141,10 +141,8 @@ Return non-nil when the stored content changed."
                  (elfeed-db-save)))
            (remhash id elfeed-adapters-theatlantic--pending))))))))
 
-;;;###autoload
-(defun elfeed-adapters-theatlantic-backfill ()
+(defun elfeed-adapters-theatlantic--backfill ()
   "Enrich existing official Atlantic entries that have not been processed."
-  (interactive)
   (let ((count 0))
     (with-elfeed-db-visit (entry _feed)
       (when (and (elfeed-adapters-theatlantic--entry-p entry)
@@ -154,17 +152,17 @@ Return non-nil when the stored content changed."
                            entry :elfeed-adapters-theatlantic-sections))))
         (setq count (1+ count))
         (elfeed-adapters-theatlantic--enrich entry)))
-    (when (called-interactively-p 'interactive)
-      (message "Started Atlantic image enrichment for %d entries" count))
     count))
 
 ;;;###autoload
 (define-minor-mode elfeed-adapters-theatlantic-mode
-  "Enrich new entries from official Atlantic author feeds with lead images."
+  "Automatically enrich new and existing official Atlantic feed entries."
   :global t
   :group 'elfeed-adapters
   (if elfeed-adapters-theatlantic-mode
-      (add-hook 'elfeed-new-entry-hook #'elfeed-adapters-theatlantic--enrich)
+      (progn
+        (add-hook 'elfeed-new-entry-hook #'elfeed-adapters-theatlantic--enrich)
+        (elfeed-adapters-theatlantic--backfill))
     (remove-hook 'elfeed-new-entry-hook #'elfeed-adapters-theatlantic--enrich)))
 
 (provide 'elfeed-adapters-theatlantic)

@@ -300,6 +300,20 @@
              normalized))
     (should-not (string-match-p "class=\"smallcaps\"" normalized))))
 
+(ert-deftest elfeed-adapters-theatlantic-mode-backfills-automatically ()
+  (require 'elfeed-adapters-theatlantic)
+  (let ((elfeed-adapters-theatlantic-mode nil)
+        (backfilled nil))
+    (unwind-protect
+        (cl-letf (((symbol-function
+                    'elfeed-adapters-theatlantic--backfill)
+                   (lambda () (setq backfilled t))))
+          (elfeed-adapters-theatlantic-mode 1)
+          (should backfilled)
+          (should (memq #'elfeed-adapters-theatlantic--enrich
+                        elfeed-new-entry-hook)))
+      (elfeed-adapters-theatlantic-mode -1))))
+
 (ert-deftest elfeed-adapters-zhihu-reads-browser-cookies-and-full-content ()
   (require 'elfeed-adapters-zhihu)
   (let ((requests nil)

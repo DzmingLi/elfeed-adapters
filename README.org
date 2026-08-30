@@ -20,8 +20,9 @@ preserved when an adapter refreshes content.
 
 The optional =elfeed-adapters-theatlantic-mode= keeps using The Atlantic's
 official full-content author feeds and prepends each article's =og:image= lead
-image.  Run =M-x elfeed-adapters-theatlantic-backfill= once to enrich entries
-already present in the database.
+image.  Enabling the mode automatically enriches both new entries and entries
+already present in the database, including portable section separators for
+The Atlantic's drop-cap paragraphs.
 
 Douban URLs accept the optional =filterout_title= query parameter as an Emacs
 regular expression.  NetEase Music song shares include the official outchain
