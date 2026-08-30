@@ -18,10 +18,15 @@ preserved when an adapter refreshes content.
 | NetEase Music events | =adapter:netease-music/user/events/USER= | None |
 | Telegram channels | =adapter:telegram/channel/CHANNEL= | None |
 | The Atlantic authors | =adapter:theatlantic/author/SLUG= | None |
+| Blogger full posts | =adapter:blogger/HOST= | None |
 
 The Atlantic adapter consumes the publisher's official full-content Atom feed,
 prepends its =media:content= lead image, and converts drop-cap paragraphs to
 portable section separators during the fetch.
+
+The Blogger adapter uses the site's Atom feed as an index, then reads each
+public post page to replace a configured summary with the complete
+=.post-body= HTML.  For example, use =adapter:blogger/dostoe.blogspot.com=.
 
 Douban URLs accept the optional =filterout_title= query parameter as an Emacs
 regular expression.  NetEase Music song shares include the official outchain

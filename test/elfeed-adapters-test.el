@@ -165,6 +165,51 @@
                                   (plist-get item :content)))
       (should-not (string-match-p "《》" (plist-get item :title))))))
 
+(ert-deftest elfeed-adapters-blogger-fetches-full-public-posts ()
+  (require 'elfeed-adapters-blogger)
+  (let* ((requests nil)
+         (elfeed-adapters-request-function
+         (lambda (url callback headers)
+           (push url requests)
+           (should-not (assoc-string "Cookie" headers t))
+           (funcall
+            callback nil
+            (elfeed-adapters-test--fixture
+             (if (string-suffix-p "/feeds/posts/default" url)
+                 "blogger/feed.xml"
+               "blogger/article.html")))))
+        result)
+    (elfeed-adapters-blogger--fetch
+     nil '(:host "dostoe.blogspot.com")
+     (lambda (error value) (should-not error) (setq result value)))
+    (should (= (length requests) 2))
+    (should (equal (plist-get result :title) "Dostoe"))
+    (should (equal (plist-get result :namespace) "dostoe.blogspot.com"))
+    (let ((item (car (plist-get result :items))))
+      (should (equal (plist-get item :title) "定海水操"))
+      (should (equal (plist-get item :authors) '("Dostoe")))
+      (should (string-match-p "这是完整正文" (plist-get item :content)))
+      (should (string-match-p "水操尤奇在夜战" (plist-get item :content)))
+      (should (string-match-p "blogger.jpg" (plist-get item :content)))
+      (should-not (string-match-p "被截断的摘要"
+                                  (plist-get item :content))))))
+
+(ert-deftest elfeed-adapters-blogger-retains-summary-on-page-failure ()
+  (require 'elfeed-adapters-blogger)
+  (let ((elfeed-adapters-request-function
+         (lambda (url callback _headers)
+           (if (string-suffix-p "/feeds/posts/default" url)
+               (funcall callback nil
+                        (elfeed-adapters-test--fixture "blogger/feed.xml"))
+             (funcall callback "HTTP 503" nil))))
+        result)
+    (elfeed-adapters-blogger--fetch
+     nil '(:host "dostoe.blogspot.com")
+     (lambda (error value) (should-not error) (setq result value)))
+    (should (string-match-p
+             "被截断的摘要"
+             (plist-get (car (plist-get result :items)) :content)))))
+
 (ert-deftest elfeed-adapters-douban-preserves-user-id-with-query-parameters ()
   (should
    (equal

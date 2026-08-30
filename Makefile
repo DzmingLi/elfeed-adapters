@@ -15,6 +15,7 @@ compile:
 	  -f batch-byte-compile \
 	  elfeed-adapters.el \
 	  elfeed-adapters-http.el \
+	  elfeed-adapters-blogger.el \
 	  elfeed-adapters-douban.el \
 	  elfeed-adapters-gcores.el \
 	  elfeed-adapters-netease-music.el \
