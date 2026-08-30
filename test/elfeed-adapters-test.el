@@ -262,28 +262,33 @@
       (should (string-match-p "Full message with"
                               (plist-get item :title))))))
 
-(ert-deftest elfeed-adapters-theatlantic-extracts-and-renders-lead-image ()
+(ert-deftest elfeed-adapters-theatlantic-fetches-and-converts-official-feed ()
   (require 'elfeed-adapters-theatlantic)
-  (let* ((html (elfeed-adapters-test--fixture
-                "theatlantic/article.html"))
-         (image-url
-          (elfeed-adapters-theatlantic--extract-image html))
-         (entry
-          (elfeed-entry--create
-           :id '("theatlantic.com" . "article")
-           :feed-id "https://www.theatlantic.com/feed/author/example/"
-           :title "An Atlantic Article"
-           :link "https://www.theatlantic.com/example/"
-           :date 1700000000
-           :content "<p>Full text.</p>"
-           :content-type 'html
-           :tags nil
-           :meta nil)))
-    (should (equal image-url "https://cdn.theatlantic.com/lead.jpg"))
-    (should
-     (equal
-      (elfeed-adapters-theatlantic--image-html entry image-url)
-      "<figure class=\"elfeed-adapters-theatlantic-lead\"><img src=\"https://cdn.theatlantic.com/lead.jpg\" alt=\"An Atlantic Article\"></figure>"))))
+  (let ((elfeed-adapters-request-function
+         (lambda (url callback _headers)
+           (should
+            (equal url
+                   "https://www.theatlantic.com/feed/author/rose-horowitch/"))
+           (funcall callback nil
+                    (elfeed-adapters-test--fixture
+                     "theatlantic/author.xml"))))
+        result)
+    (elfeed-adapters-theatlantic--fetch
+     nil '(:slug "rose-horowitch")
+     (lambda (error value) (should-not error) (setq result value)))
+    (let ((item (car (plist-get result :items))))
+      (should (equal (plist-get result :namespace) "theatlantic.com"))
+      (should (equal (plist-get item :guid)
+                     "tag:theatlantic.com,2026:50-687618"))
+      (should (equal (plist-get item :title)
+                     "The End of Reading Is Here"))
+      (should (equal (plist-get item :authors) '("Rose Horowitch")))
+      (should (equal (plist-get item :date) "2026-07-08T09:55:00Z"))
+      (should (string-match-p "https://cdn.theatlantic.com/lead.jpg"
+                              (plist-get item :content)))
+      (should (string-match-p
+               "<hr><p class=\"dropcap\"><strong>Second section</strong>"
+               (plist-get item :content))))))
 
 (ert-deftest elfeed-adapters-theatlantic-makes-dropcap-sections-portable ()
   (require 'elfeed-adapters-theatlantic)
@@ -299,20 +304,6 @@
              "<hr><p class=\"dropcap\"><strong>Second section</strong>"
              normalized))
     (should-not (string-match-p "class=\"smallcaps\"" normalized))))
-
-(ert-deftest elfeed-adapters-theatlantic-mode-backfills-automatically ()
-  (require 'elfeed-adapters-theatlantic)
-  (let ((elfeed-adapters-theatlantic-mode nil)
-        (backfilled nil))
-    (unwind-protect
-        (cl-letf (((symbol-function
-                    'elfeed-adapters-theatlantic--backfill)
-                   (lambda () (setq backfilled t))))
-          (elfeed-adapters-theatlantic-mode 1)
-          (should backfilled)
-          (should (memq #'elfeed-adapters-theatlantic--enrich
-                        elfeed-new-entry-hook)))
-      (elfeed-adapters-theatlantic-mode -1))))
 
 (ert-deftest elfeed-adapters-zhihu-reads-browser-cookies-and-full-content ()
   (require 'elfeed-adapters-zhihu)

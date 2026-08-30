@@ -1,50 +1,31 @@
-;;; elfeed-adapters-theatlantic.el --- Enrich Atlantic feeds  -*- lexical-binding: t; -*-
+;;; elfeed-adapters-theatlantic.el --- Atlantic author feeds  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 Dzming Li
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
 
 ;;; Commentary:
 
-;; Keep using The Atlantic's official full-content author feeds, but enrich
-;; their entries with the lead image advertised by the article page.  Convert
-;; Atlantic-specific drop-cap sections to portable HTML separators that SHR
-;; and Org-oriented readers can display without the site's CSS.
+;; Consume The Atlantic's official full-content author Atom feeds directly.
+;; Lead images come from media:content, while site-specific drop-cap sections
+;; are converted to portable HTML during the same fetch.
 
 ;;; Code:
 
 (require 'dom)
+(require 'seq)
+(require 'subr-x)
+(require 'xml)
 (require 'elfeed-adapters)
 (require 'elfeed-adapters-http)
-(require 'xml)
 
-(declare-function elfeed-show-refresh "elfeed-show")
-(defvar elfeed-show-entry)
-
-(defvar elfeed-adapters-theatlantic--pending
-  (make-hash-table :test #'equal)
-  "Entry IDs currently being enriched.")
-
-(defun elfeed-adapters-theatlantic--entry-p (entry)
-  "Return non-nil when ENTRY belongs to an official Atlantic author feed."
-  (string-prefix-p "https://www.theatlantic.com/feed/author/"
-                   (elfeed-entry-feed-id entry)))
-
-(defun elfeed-adapters-theatlantic--extract-image (html)
-  "Return the Open Graph image URL found in HTML, or nil."
-  (when (and (stringp html) (libxml-available-p))
-    (with-temp-buffer
-      (insert html)
-      (let ((document (libxml-parse-html-region (point-min) (point-max))))
-        (cl-loop for element in (dom-by-tag document 'meta)
-                 when (equal (dom-attr element 'property) "og:image")
-                 return (dom-attr element 'content))))))
-
-(defun elfeed-adapters-theatlantic--image-html (entry image-url)
-  "Return lead-image markup for ENTRY using IMAGE-URL."
-  (format
-   "<figure class=\"elfeed-adapters-theatlantic-lead\"><img src=\"%s\" alt=\"%s\"></figure>"
-   (xml-escape-string image-url)
-   (xml-escape-string (or (elfeed-entry-title entry) "The Atlantic"))))
+(defun elfeed-adapters-theatlantic--match (url)
+  "Return parameters when URL names an Atlantic author SLUG."
+  (when (string-match
+         (rx string-start "adapter:theatlantic/author/"
+             (group (+ (or alnum "-")))
+             (optional "?" (* nonl)) string-end)
+         url)
+    (list :slug (match-string 1 url))))
 
 (defun elfeed-adapters-theatlantic--section-html (html)
   "Make Atlantic drop-cap sections in HTML visible to simple readers.
@@ -62,108 +43,128 @@ and render the site's small-caps span as portable strong emphasis."
                  (progn (setq first nil) opening)
                (concat "<hr>" opening)))
            result t t))
-    (setq result
-          (replace-regexp-in-string
-           "<span class=\"smallcaps\">\\([^<]*\\)</span>"
-           "<strong>\\1</strong>"
-           result t))
-    result))
+    (replace-regexp-in-string
+     "<span class=\"smallcaps\">\\([^<]*\\)</span>"
+     "<strong>\\1</strong>"
+     result t)))
 
-(defun elfeed-adapters-theatlantic--normalize-entry (entry)
-  "Apply portable Atlantic section markup to ENTRY.
+(defun elfeed-adapters-theatlantic--text (node)
+  "Return trimmed text contained by DOM NODE."
+  (when node
+    (string-trim (dom-inner-text node))))
 
-Return non-nil when the stored content changed."
-  (unless (elfeed-meta entry :elfeed-adapters-theatlantic-sections)
-    (let* ((content (or (elfeed-deref (elfeed-entry-content entry)) ""))
-           (normalized
-            (elfeed-adapters-theatlantic--section-html content)))
-      (unless (equal content normalized)
-        (setf (elfeed-entry-content entry) (elfeed-ref normalized)))
-      (setf (elfeed-meta entry :elfeed-adapters-theatlantic-sections) t)
-      (not (equal content normalized)))))
+(defun elfeed-adapters-theatlantic--child (node tag)
+  "Return NODE's first direct child named TAG."
+  (seq-find (lambda (child)
+              (and (listp child) (eq (dom-tag child) tag)))
+            (dom-children node)))
 
-(defun elfeed-adapters-theatlantic--refresh-visible-entry (entry)
-  "Refresh Elfeed buffers after enriching ENTRY."
-  (when-let* ((buffer (get-buffer "*elfeed-search*")))
-    (with-current-buffer buffer
-      (revert-buffer nil t)))
-  (when-let* ((buffer (get-buffer "*elfeed-entry*")))
-    (with-current-buffer buffer
-      (when (and (boundp 'elfeed-show-entry)
-                 elfeed-show-entry
-                 (equal (elfeed-entry-id elfeed-show-entry)
-                        (elfeed-entry-id entry)))
-        (setq elfeed-show-entry entry)
-        (elfeed-show-refresh)))))
+(defun elfeed-adapters-theatlantic--content (entry)
+  "Return the HTML content string from Atom ENTRY."
+  (when-let* ((node
+               (seq-find
+                (lambda (content)
+                  (equal (dom-attr content 'type) "html"))
+                (dom-by-tag entry 'content))))
+    (dom-inner-text node)))
 
-(defun elfeed-adapters-theatlantic--enrich (entry)
-  "Asynchronously add The Atlantic lead image to ENTRY."
-  (let ((id (elfeed-entry-id entry)))
-    (when (and (elfeed-adapters-theatlantic--entry-p entry)
-               (eq (elfeed-entry-content-type entry) 'html))
-      (when (elfeed-adapters-theatlantic--normalize-entry entry)
-        (elfeed-db-set-update-time)
-        (elfeed-db-save)
-        (elfeed-adapters-theatlantic--refresh-visible-entry entry))
-      (when (and
-             (not (elfeed-meta entry :elfeed-adapters-theatlantic-image))
-             (not (gethash id elfeed-adapters-theatlantic--pending)))
-      (puthash id t elfeed-adapters-theatlantic--pending)
-      (elfeed-adapters-request
-       (elfeed-entry-link entry)
-       (lambda (error html)
-         (unwind-protect
-             (if error
-                 (elfeed-log 'error "Atlantic image lookup failed for %s: %s"
-                             (elfeed-entry-link entry) error)
-               (if-let* ((image-url
-                          (elfeed-adapters-theatlantic--extract-image html)))
-                   (let ((content (or (elfeed-deref
-                                       (elfeed-entry-content entry))
-                                      "")))
-                     (unless (string-match-p (regexp-quote image-url) content)
-                       (setf (elfeed-entry-content entry)
-                             (elfeed-ref
-                              (concat
-                               (elfeed-adapters-theatlantic--image-html
-                                entry image-url)
-                               content))))
-                     (setf (elfeed-meta
-                            entry :elfeed-adapters-theatlantic-image)
-                           image-url)
-                     (elfeed-db-set-update-time)
-                     (elfeed-db-save)
-                     (elfeed-adapters-theatlantic--refresh-visible-entry entry))
-                 (setf (elfeed-meta
-                        entry :elfeed-adapters-theatlantic-image)
-                       'missing)
-                 (elfeed-db-set-update-time)
-                 (elfeed-db-save)))
-           (remhash id elfeed-adapters-theatlantic--pending))))))))
+(defun elfeed-adapters-theatlantic--image-url (entry)
+  "Return the media:content image URL from Atom ENTRY."
+  (when-let* ((node
+               (seq-find
+                (lambda (content) (dom-attr content 'url))
+                (dom-by-tag entry 'content))))
+    (dom-attr node 'url)))
 
-(defun elfeed-adapters-theatlantic--backfill ()
-  "Enrich existing official Atlantic entries that have not been processed."
-  (let ((count 0))
-    (with-elfeed-db-visit (entry _feed)
-      (when (and (elfeed-adapters-theatlantic--entry-p entry)
-                 (or (not (elfeed-meta
-                           entry :elfeed-adapters-theatlantic-image))
-                     (not (elfeed-meta
-                           entry :elfeed-adapters-theatlantic-sections))))
-        (setq count (1+ count))
-        (elfeed-adapters-theatlantic--enrich entry)))
-    count))
+(defun elfeed-adapters-theatlantic--link (entry)
+  "Return the alternate article URL from Atom ENTRY."
+  (when-let* ((node
+               (seq-find
+                (lambda (link)
+                  (equal (dom-attr link 'rel) "alternate"))
+                (dom-by-tag entry 'link))))
+    (dom-attr node 'href)))
+
+(defun elfeed-adapters-theatlantic--image-html (title image-url)
+  "Return lead-image markup using TITLE and IMAGE-URL."
+  (when image-url
+    (format
+     "<figure class=\"elfeed-adapters-theatlantic-lead\"><img src=\"%s\" alt=\"%s\"></figure>"
+     (xml-escape-string image-url)
+     (xml-escape-string (or title "The Atlantic")))))
+
+(defun elfeed-adapters-theatlantic--item (entry)
+  "Convert an Atlantic Atom ENTRY to a normalized adapter item."
+  (let* ((title
+          (elfeed-adapters-theatlantic--text
+           (elfeed-adapters-theatlantic--child entry 'title)))
+         (author-node
+          (elfeed-adapters-theatlantic--child entry 'author))
+         (author
+          (elfeed-adapters-theatlantic--text
+           (and author-node
+                (elfeed-adapters-theatlantic--child author-node 'name))))
+         (content
+          (elfeed-adapters-theatlantic--section-html
+           (elfeed-adapters-theatlantic--content entry)))
+         (image-url (elfeed-adapters-theatlantic--image-url entry)))
+    (list
+     :guid
+     (elfeed-adapters-theatlantic--text
+      (elfeed-adapters-theatlantic--child entry 'id))
+     :title title
+     :link (elfeed-adapters-theatlantic--link entry)
+     :date
+     (elfeed-adapters-theatlantic--text
+      (or (elfeed-adapters-theatlantic--child entry 'published)
+          (elfeed-adapters-theatlantic--child entry 'updated)))
+     :authors (and author (list author))
+     :content (concat
+               (elfeed-adapters-theatlantic--image-html title image-url)
+               content)
+     :content-type 'html)))
+
+(defun elfeed-adapters-theatlantic--result (xml slug)
+  "Parse Atlantic author feed XML for SLUG into an adapter result."
+  (with-temp-buffer
+    (insert xml)
+    (let* ((document
+            (libxml-parse-xml-region (point-min) (point-max)))
+           (title
+            (elfeed-adapters-theatlantic--text
+             (elfeed-adapters-theatlantic--child document 'title)))
+           (items
+            (mapcar #'elfeed-adapters-theatlantic--item
+                    (dom-by-tag document 'entry))))
+      (unless items
+        (error "No Atlantic articles found for %s" slug))
+      (list :title (or title (format "The Atlantic - %s" slug))
+            :namespace "theatlantic.com"
+            :items items))))
+
+(defun elfeed-adapters-theatlantic--fetch (_url parameters callback)
+  "Fetch an Atlantic author feed described by PARAMETERS and call CALLBACK."
+  (let* ((slug (plist-get parameters :slug))
+         (feed-url
+          (format "https://www.theatlantic.com/feed/author/%s/" slug)))
+    (elfeed-adapters-request
+     feed-url
+     (lambda (error body)
+       (if error
+           (funcall callback error nil)
+         (condition-case parse-error
+             (funcall callback nil
+                      (elfeed-adapters-theatlantic--result body slug))
+           (error (funcall callback parse-error nil))))))))
 
 ;;;###autoload
-(define-minor-mode elfeed-adapters-theatlantic-mode
-  "Automatically enrich new and existing official Atlantic feed entries."
-  :global t
-  :group 'elfeed-adapters
-  (if elfeed-adapters-theatlantic-mode
-      (progn
-        (add-hook 'elfeed-new-entry-hook #'elfeed-adapters-theatlantic--enrich)
-        (elfeed-adapters-theatlantic--backfill))
-    (remove-hook 'elfeed-new-entry-hook #'elfeed-adapters-theatlantic--enrich)))
+(defun elfeed-adapters-theatlantic-register ()
+  "Register The Atlantic author adapter."
+  (elfeed-adapters-register
+   'theatlantic #'elfeed-adapters-theatlantic--match
+   #'elfeed-adapters-theatlantic--fetch))
+
+(elfeed-adapters-theatlantic-register)
 
 (provide 'elfeed-adapters-theatlantic)
 ;;; elfeed-adapters-theatlantic.el ends here

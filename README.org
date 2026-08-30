@@ -17,12 +17,11 @@ preserved when an adapter refreshes content.
 | GCORES talks | =adapter:gcores/users/USER/talks= | None |
 | NetEase Music events | =adapter:netease-music/user/events/USER= | None |
 | Telegram channels | =adapter:telegram/channel/CHANNEL= | None |
+| The Atlantic authors | =adapter:theatlantic/author/SLUG= | None |
 
-The optional =elfeed-adapters-theatlantic-mode= keeps using The Atlantic's
-official full-content author feeds and prepends each article's =og:image= lead
-image.  Enabling the mode automatically enriches both new entries and entries
-already present in the database, including portable section separators for
-The Atlantic's drop-cap paragraphs.
+The Atlantic adapter consumes the publisher's official full-content Atom feed,
+prepends its =media:content= lead image, and converts drop-cap paragraphs to
+portable section separators during the fetch.
 
 Douban URLs accept the optional =filterout_title= query parameter as an Emacs
 regular expression.  NetEase Music song shares include the official outchain
