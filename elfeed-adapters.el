@@ -192,7 +192,14 @@ to whole seconds."
                 (elfeed-feed-autotags feed-id)
                 elfeed-initial-tags))
          (authors (elfeed-adapters--authors (plist-get item :authors)))
-         (categories (plist-get item :categories)))
+         (categories (plist-get item :categories))
+         ;; Adapter feed IDs use the non-HTTP `adapter:' scheme, which is not
+         ;; a usable base URL for SHR.  In particular, Emacs 31's same-origin
+         ;; cookie check expects an HTTP(S) host while fetching images.  Let an
+         ;; adapter override the base explicitly, otherwise use the entry's
+         ;; canonical web link.
+         (base-url (or (plist-get item :base-url)
+                       (plist-get item :link))))
     (elfeed-entry--create
      :id id
      :feed-id feed-id
@@ -205,7 +212,8 @@ to whole seconds."
      :enclosures (plist-get item :enclosures)
      :tags tags
      :meta `(,@(when authors (list :authors authors))
-             ,@(when categories (list :categories categories))))))
+             ,@(when categories (list :categories categories))
+             ,@(when (stringp base-url) (list :base-url base-url))))))
 
 (defun elfeed-adapters--store (feed-id adapter result)
   "Store adapter RESULT for FEED-ID using ADAPTER."

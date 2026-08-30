@@ -119,7 +119,21 @@
       (elfeed-adapters-fetch feed-url #'ignore)
       (elfeed-tag (elfeed-db-get-entry id) 'saved)
       (elfeed-adapters-fetch feed-url #'ignore)
-      (should (elfeed-tagged-p 'saved (elfeed-db-get-entry id))))))
+      (let ((entry (elfeed-db-get-entry id)))
+        (should (elfeed-tagged-p 'saved entry))
+        (should (equal (elfeed-meta entry :base-url) item-url))))))
+
+(ert-deftest elfeed-adapters-prefers-an-explicit-entry-base-url ()
+  (let* ((feed-url "adapter:test/source")
+         (item '(:guid "entry-with-base"
+                 :link "https://example.com/article"
+                 :base-url "https://static.example.net/assets/"
+                 :title "Entry with an explicit base"
+                 :date 1700000000
+                 :content "<img src=\"cover.jpg\">"))
+         (entry (elfeed-adapters--entry feed-url "example.com" item)))
+    (should (equal (elfeed-meta entry :base-url)
+                   "https://static.example.net/assets/"))))
 
 (ert-deftest elfeed-adapters-preserves-source-publication-times ()
   (let* ((feed-url "adapter:test/source")
