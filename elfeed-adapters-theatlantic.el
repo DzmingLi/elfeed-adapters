@@ -139,7 +139,9 @@ and render the site's small-caps span as portable strong emphasis."
       (unless items
         (error "No Atlantic articles found for %s" slug))
       (list :title (or title (format "The Atlantic - %s" slug))
-            :namespace "theatlantic.com"
+            ;; Match Elfeed's namespace for the former official feed URL so
+            ;; switching to the adapter updates existing entries in place.
+            :namespace "www.theatlantic.com"
             :items items))))
 
 (defun elfeed-adapters-theatlantic--fetch (_url parameters callback)

@@ -277,7 +277,7 @@
      nil '(:slug "rose-horowitch")
      (lambda (error value) (should-not error) (setq result value)))
     (let ((item (car (plist-get result :items))))
-      (should (equal (plist-get result :namespace) "theatlantic.com"))
+      (should (equal (plist-get result :namespace) "www.theatlantic.com"))
       (should (equal (plist-get item :guid)
                      "tag:theatlantic.com,2026:50-687618"))
       (should (equal (plist-get item :title)
