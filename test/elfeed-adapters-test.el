@@ -241,6 +241,77 @@
    (elfeed-adapters-douban--match
     "adapter:douban/notifications/likes")))
 
+(defun elfeed-adapters-test--douban-reply-entry ()
+  "Return a representative direct-reply Elfeed entry."
+  (elfeed-entry--create
+   :id '("douban.com" . "douban-reply-comment-502")
+   :feed-id "adapter:douban/notifications/replies"
+   :title "广播作者 回复了你：具体回复"
+   :link "https://www.douban.com/people/7/status/12345/#comment_502"
+   :meta '(:authors ((:name "广播作者"))
+           :base-url "https://www.douban.com/people/7/status/12345")))
+
+(ert-deftest elfeed-adapters-douban-recovers-reply-target-from-entry ()
+  (require 'elfeed-adapters-douban)
+  (let ((target (elfeed-adapters-douban--reply-target
+                 (elfeed-adapters-test--douban-reply-entry))))
+    (should (equal (plist-get target :comment-id) "502"))
+    (should (equal (plist-get target :status-id) "12345"))
+    (should (equal (plist-get target :author) "广播作者"))))
+
+(ert-deftest elfeed-adapters-douban-posts-a-reply-with-cookies-and-csrf ()
+  (require 'elfeed-adapters-douban)
+  (let ((elfeed-adapters-douban-profile-directory "/firefox/profile")
+        captured result)
+    (cl-letf (((symbol-function 'browser-cookies-get)
+               (lambda (_url &rest _arguments)
+                 '(("dbcl2" . "\"42:session\"")
+                   ("ck" . "csrf-token"))))
+              (elfeed-adapters-douban-post-function
+               (lambda (url body callback headers)
+                 (setq captured (list url body headers))
+                 (funcall callback nil
+                          "{\"id\":9002,\"text\":\"我的继续回复\"}"))))
+      (elfeed-adapters-douban--post-reply
+       (elfeed-adapters-douban--reply-target
+        (elfeed-adapters-test--douban-reply-entry))
+       "我的继续回复"
+       (lambda (error value) (should-not error) (setq result value))))
+    (pcase-let ((`(,url ,body ,headers) captured))
+      (should (string-suffix-p "/status/12345/create_comment" url))
+      (should (equal
+               (decode-coding-string
+                (cadr (assoc "text" (url-parse-query-string body))) 'utf-8)
+               "我的继续回复"))
+      (should (equal (cadr (assoc "ref_cid" (url-parse-query-string body)))
+                     "502"))
+      (should (equal (cdr (assoc-string "X-CSRF-TOKEN" headers t))
+                     "csrf-token"))
+      (should (string-match-p "dbcl2="
+                              (cdr (assoc-string "Cookie" headers t)))))
+    (should (equal (plist-get result :id) 9002))))
+
+(ert-deftest elfeed-adapters-douban-r-opens-message-compose-and-sends-body ()
+  (require 'elfeed-adapters-douban)
+  (let ((entry (elfeed-adapters-test--douban-reply-entry))
+        compose-buffer sent-text)
+    (cl-letf (((symbol-function 'pop-to-buffer)
+               (lambda (buffer &rest _arguments)
+                 (setq compose-buffer buffer)
+                 (set-buffer buffer)))
+              ((symbol-function 'elfeed-adapters-douban--post-reply)
+               (lambda (_target text callback)
+                 (setq sent-text text)
+                 (funcall callback nil '(:id 9002)))))
+      (elfeed-adapters-douban-reply entry)
+      (should (derived-mode-p 'message-mode))
+      (should (eq (key-binding (kbd "C-c C-c"))
+                  #'elfeed-adapters-douban-send-reply))
+      (insert "从 Elfeed 继续回复")
+      (elfeed-adapters-douban-send-reply))
+    (should (equal sent-text "从 Elfeed 继续回复"))
+    (should-not (buffer-live-p compose-buffer))))
+
 (ert-deftest elfeed-adapters-douban-fetches-specific-direct-replies-only ()
   (require 'elfeed-adapters-douban)
   (let ((elfeed-adapters-douban-profile-directory "/firefox/profile")

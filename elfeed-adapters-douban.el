@@ -16,6 +16,8 @@
 (require 'browser-cookies)
 (require 'dom)
 (require 'json)
+(require 'message)
+(require 'plz)
 (require 'seq)
 (require 'subr-x)
 (require 'url-parse)
@@ -23,6 +25,10 @@
 (require 'xml)
 (require 'elfeed-adapters)
 (require 'elfeed-adapters-http)
+
+(declare-function elfeed-search-selected "elfeed-search" (&optional ignore-region))
+(declare-function elfeed-search-untag-unread "elfeed-search" (&rest entries))
+(defvar elfeed-show-entry)
 
 (defgroup elfeed-adapters-douban nil
   "Douban sources for Elfeed Adapters."
@@ -39,6 +45,16 @@
   "Explicit browser profile directory containing the Douban session."
   :type '(choice (const :tag "Not configured" nil) directory)
   :group 'elfeed-adapters-douban)
+
+(defvar elfeed-adapters-douban-post-function
+  #'elfeed-adapters-douban--plz-post
+  "Function used to post a Douban reply.
+
+The function receives URL, form-encoded BODY, CALLBACK, and HEADERS.  CALLBACK
+receives (ERROR BODY).  Bind this in tests instead of publishing a comment.")
+
+(defvar-local elfeed-adapters-douban--compose-target nil)
+(defvar-local elfeed-adapters-douban--compose-sending nil)
 
 (defun elfeed-adapters-douban--match (url)
   "Return parameters when URL is a supported Douban adapter URL."
@@ -134,21 +150,206 @@ session."
            url :browser elfeed-adapters-douban-browser
            :profile-directory elfeed-adapters-douban-profile-directory))
          (dbcl2 (cdr (assoc-string "dbcl2" cookies t)))
+         (csrf-token (cdr (assoc-string "ck" cookies t)))
          (user-id
           (and dbcl2
                (string-match (rx string-start (optional "\"")
                                  (group (+ digit)) ":")
                              dbcl2)
                (match-string 1 dbcl2))))
-    (unless (and cookies user-id)
+    (unless (and cookies user-id csrf-token)
       (error "No logged-in Douban browser session found"))
     (list :user-id user-id
+          :csrf-token csrf-token
           :headers
           `(("Cookie" .
              ,(mapconcat (lambda (cookie)
                            (format "%s=%s" (car cookie) (cdr cookie)))
                          cookies "; "))
             ("Referer" . "https://www.douban.com/")))))
+
+(defun elfeed-adapters-douban--plz-post (url body callback headers)
+  "POST form-encoded BODY to URL and call CALLBACK with (ERROR RESPONSE).
+
+HEADERS is an alist of request headers."
+  (condition-case error
+      (plz 'post url
+        :headers headers
+        :body (encode-coding-string body 'utf-8)
+        :body-type 'binary
+        :as 'string
+        :then (lambda (response) (funcall callback nil response))
+        :else (lambda (request-error) (funcall callback request-error nil))
+        :connect-timeout 30
+        :timeout 60)
+    (error (funcall callback error nil))))
+
+(defun elfeed-adapters-douban--reply-target (entry)
+  "Return reply parameters encoded by Douban notification ENTRY."
+  (when (and entry
+             (equal (elfeed-entry-feed-id entry)
+                    "adapter:douban/notifications/replies"))
+    (let* ((guid (cdr (elfeed-entry-id entry)))
+           (source-url (plist-get (elfeed-entry-meta entry) :base-url))
+           (authors (plist-get (elfeed-entry-meta entry) :authors)))
+      (when (and (stringp guid)
+                 (string-match
+                  (rx string-start "douban-reply-comment-"
+                      (group (+ digit)) string-end)
+                  guid)
+                 (stringp source-url)
+                 (string-match
+                  (rx "https://www.douban.com/people/" (+ digit) "/status/"
+                      (group (+ digit)))
+                  source-url))
+        (list :entry entry
+              :comment-id (substring guid
+                                     (length "douban-reply-comment-"))
+              :status-id (match-string 1 source-url)
+              :source-url source-url
+              :author (or (plist-get (car authors) :name) "豆瓣用户")
+              :title (elfeed-entry-title entry))))))
+
+(defun elfeed-adapters-douban-entry-at-point ()
+  "Return the current Elfeed entry in search or show mode."
+  (cond
+   ((derived-mode-p 'elfeed-show-mode) elfeed-show-entry)
+   ((derived-mode-p 'elfeed-search-mode)
+    (elfeed-search-selected :ignore-region))))
+
+(defun elfeed-adapters-douban-replyable-p (&optional entry)
+  "Return non-nil when ENTRY, or the entry at point, accepts a Douban reply."
+  (and (elfeed-adapters-douban--reply-target
+        (or entry (elfeed-adapters-douban-entry-at-point)))
+       t))
+
+(defun elfeed-adapters-douban--post-reply (target text callback)
+  "Post TEXT as a reply to TARGET, then call CALLBACK with (ERROR RESULT)."
+  (condition-case session-error
+      (let* ((session (elfeed-adapters-douban--notification-session))
+             (csrf-token (plist-get session :csrf-token))
+             (source-url (plist-get target :source-url))
+             (url (format
+                   "https://m.douban.com/rexxar/api/v2/status/%s/create_comment"
+                   (plist-get target :status-id)))
+             (body
+              (url-build-query-string
+               `(("resp_type" "c_dict")
+                 ("ck" ,csrf-token)
+                 ("text" ,text)
+                 ("ref_cid" ,(plist-get target :comment-id)))))
+             (cookie (cdr (assoc-string
+                           "Cookie" (plist-get session :headers) t)))
+             (headers
+              `(("Cookie" . ,cookie)
+                ("Referer" . ,source-url)
+                ("X-CSRF-TOKEN" . ,csrf-token)
+                ("X-Requested-With" . "XMLHttpRequest")
+                ("Accept" . "application/json, text/javascript, */*; q=0.01")
+                ("Content-Type" .
+                 "application/x-www-form-urlencoded; charset=utf-8")
+                ("User-Agent" . ,elfeed-adapters-user-agent))))
+        (funcall
+         elfeed-adapters-douban-post-function
+         url body
+         (lambda (error response)
+           (if error
+               (funcall callback error nil)
+             (condition-case parse-error
+                 (let* ((payload
+                         (json-parse-string
+                          response :object-type 'plist :array-type 'list
+                          :null-object nil :false-object nil))
+                        (code (plist-get payload :code))
+                        (message (or (plist-get payload :localized_message)
+                                     (plist-get payload :msg))))
+                   (if (or (and code (not (equal code 0))) message)
+                       (funcall callback (or message
+                                             (format "Douban error %s" code))
+                                nil)
+                     (funcall callback nil
+                              (or (plist-get payload :data) payload))))
+               (error (funcall callback parse-error nil)))))
+         headers))
+    (error (funcall callback session-error nil))))
+
+(defun elfeed-adapters-douban--compose-body ()
+  "Return the reply body from the current compose buffer."
+  (save-excursion
+    (goto-char (point-min))
+    (unless (re-search-forward
+             (concat "^" (regexp-quote mail-header-separator) "$") nil t)
+      (user-error "Reply body separator is missing"))
+    (forward-line 1)
+    (string-trim (buffer-substring-no-properties (point) (point-max)))))
+
+(defun elfeed-adapters-douban-send-reply ()
+  "Send the current Douban reply and close its compose buffer on success."
+  (interactive)
+  (unless elfeed-adapters-douban--compose-target
+    (user-error "This is not a Douban reply buffer"))
+  (when elfeed-adapters-douban--compose-sending
+    (user-error "A Douban reply is already being sent"))
+  (let ((text (elfeed-adapters-douban--compose-body))
+        (buffer (current-buffer)))
+    (when (string-empty-p text)
+      (user-error "Reply text is empty"))
+    (setq elfeed-adapters-douban--compose-sending t)
+    (setq-local header-line-format "Sending reply to Douban…")
+    (elfeed-adapters-douban--post-reply
+     elfeed-adapters-douban--compose-target text
+     (lambda (error _result)
+       (when (buffer-live-p buffer)
+         (with-current-buffer buffer
+           (setq elfeed-adapters-douban--compose-sending nil)
+           (if error
+               (progn
+                 (setq-local header-line-format
+                             (format "Douban reply failed: %s" error))
+                 (message "Douban reply failed: %s" error))
+             (set-buffer-modified-p nil)
+             (kill-buffer buffer)
+             (message "Douban reply sent"))))))))
+
+(defun elfeed-adapters-douban-cancel-reply ()
+  "Cancel the current Douban reply composition."
+  (interactive)
+  (when (or (not (buffer-modified-p))
+            (yes-or-no-p "Discard this Douban reply? "))
+    (set-buffer-modified-p nil)
+    (kill-buffer (current-buffer))))
+
+(define-derived-mode elfeed-adapters-douban-reply-mode message-mode
+  "Douban-Reply"
+  "Major mode for composing a reply to a Douban comment."
+  (keymap-local-set "C-c C-c" #'elfeed-adapters-douban-send-reply)
+  (keymap-local-set "C-c C-k" #'elfeed-adapters-douban-cancel-reply))
+
+(defun elfeed-adapters-douban-reply (&optional entry)
+  "Compose a reply to Douban notification ENTRY.
+
+Interactively, use the entry at point.  In Elfeed search buffers, preserve the
+native `r' behavior for entries that are not reply notifications."
+  (interactive)
+  (let* ((entry (or entry (elfeed-adapters-douban-entry-at-point)))
+         (target (elfeed-adapters-douban--reply-target entry)))
+    (cond
+     (target
+      (let ((buffer (generate-new-buffer
+                     (format "*Douban reply to %s*"
+                             (plist-get target :author)))))
+        (pop-to-buffer buffer)
+        (elfeed-adapters-douban-reply-mode)
+        (setq elfeed-adapters-douban--compose-target target)
+        (insert (format "To: %s\nSubject: Re: %s\n%s\n"
+                        (plist-get target :author)
+                        (plist-get target :title)
+                        mail-header-separator))
+        (goto-char (point-max))
+        (set-buffer-modified-p nil)))
+     ((derived-mode-p 'elfeed-search-mode)
+      (call-interactively #'elfeed-search-untag-unread))
+     (t (user-error "This Elfeed entry is not a Douban comment reply")))))
 
 (defun elfeed-adapters-douban--absolute-url (url)
   "Make a root-relative Douban URL URL absolute."

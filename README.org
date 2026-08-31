@@ -37,6 +37,10 @@ not render iframes.
 The Douban reply source turns each direct comment reply to the logged-in user
 into one Elfeed entry containing the specific comment and a source link.  It
 does not import likes, follows, or unrelated comments on a participated post.
+Call =elfeed-adapters-douban-reply= on one of those entries to compose a reply
+in =message-mode=; =C-c C-c= posts it with the browser session and =C-c C-k=
+cancels.  The command preserves Elfeed's normal mark-read action in search
+buffers when the current entry is not a Douban direct-reply notification.
 
 * Installation
 
