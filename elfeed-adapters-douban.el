@@ -339,7 +339,11 @@ native `r' behavior for entries that are not reply notifications."
                      (format "*Douban reply to %s*"
                              (plist-get target :author)))))
         (pop-to-buffer buffer)
-        (elfeed-adapters-douban-reply-mode)
+        ;; A Douban reply is not an email draft.  Avoid Message trying to
+        ;; create its Gnus draft directory (and a visited file) for this
+        ;; transient compose buffer.
+        (let ((message-auto-save-directory nil))
+          (elfeed-adapters-douban-reply-mode))
         (setq elfeed-adapters-douban--compose-target target)
         (insert (format "To: %s\nSubject: Re: %s\n%s\n"
                         (plist-get target :author)
