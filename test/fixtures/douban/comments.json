@@ -1,0 +1,31 @@
+{
+  "total": 2,
+  "comments": [
+    {
+      "id": 501,
+      "text": "我的原评论",
+      "create_time": "2026-09-01 08:00:00",
+      "author": {"id": "42", "name": "我"},
+      "replies": [
+        {
+          "id": 502,
+          "text": "这是作者具体回复的第一行\n以及第二行",
+          "create_time": "2026-09-01 09:30:00",
+          "author": {"id": "7", "name": "广播作者"},
+          "ref_comment": {
+            "id": 501,
+            "author": {"id": "42", "name": "我"}
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "id": 503,
+      "text": "与你无关的普通跟帖",
+      "create_time": "2026-09-01 10:00:00",
+      "author": {"id": "8", "name": "其他人"},
+      "replies": []
+    }
+  ]
+}

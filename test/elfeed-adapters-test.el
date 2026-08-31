@@ -229,7 +229,61 @@
    (equal
     (elfeed-adapters-douban--match
      "adapter:douban/people/215524359/status?filterout_title=%E6%83%B3%E8%AF%BB%3A")
-    '(:user-id "215524359" :filter-title "想读:"))))
+    '(:kind timeline :user-id "215524359" :filter-title "想读:"))))
+
+(ert-deftest elfeed-adapters-douban-matches-reply-notifications-only ()
+  (should
+   (equal
+    (elfeed-adapters-douban--match
+     "adapter:douban/notifications/replies")
+    '(:kind replies)))
+  (should-not
+   (elfeed-adapters-douban--match
+    "adapter:douban/notifications/likes")))
+
+(ert-deftest elfeed-adapters-douban-fetches-specific-direct-replies-only ()
+  (require 'elfeed-adapters-douban)
+  (let ((elfeed-adapters-douban-profile-directory "/firefox/profile")
+        requests result)
+    (cl-letf (((symbol-function 'browser-cookies-get)
+               (lambda (url &rest arguments)
+                 (should (equal url "https://www.douban.com/reply_notify/"))
+                 (should (equal (plist-get arguments :profile-directory)
+                                "/firefox/profile"))
+                 '(("dbcl2" . "\"42:session\"") ("ck" . "csrf"))))
+              (elfeed-adapters-request-function
+               (lambda (url callback headers)
+                 (push (cons url headers) requests)
+                 (should (assoc-string "Cookie" headers t))
+                 (funcall
+                  callback nil
+                  (elfeed-adapters-test--fixture
+                   (cond
+                    ((string-suffix-p "/reply_notify/" url)
+                     "douban/notifications.html")
+                    ((string-match-p "/notification/reply_notify" url)
+                     "douban/notification-status.html")
+                    ((string-match-p "/status/12345/comments" url)
+                     "douban/comments.json")
+                    (t (ert-fail (format "Unexpected request: %s" url)))))))))
+      (elfeed-adapters-douban--fetch
+       nil '(:kind replies)
+       (lambda (error value) (should-not error) (setq result value))))
+    (should (= (length requests) 3))
+    (let ((items (plist-get result :items)))
+      (should (= (length items) 1))
+      (let ((item (car items)))
+        (should (equal (plist-get item :guid)
+                       "douban-reply-comment-502"))
+        (should (equal (plist-get item :authors) '("广播作者")))
+        (should (string-match-p "这是作者具体回复的第一行<br>以及第二行"
+                                (plist-get item :content)))
+        (should (string-match-p "status/12345#comment_502"
+                                (plist-get item :content)))
+        (should-not (string-match-p "普通跟帖"
+                                    (plist-get item :content)))
+        (should-not (string-match-p "赞了你的广播"
+                                    (plist-get item :content)))))))
 
 (ert-deftest elfeed-adapters-douban-expands-personal-topic-with-browser-cookies ()
   (require 'elfeed-adapters-douban)

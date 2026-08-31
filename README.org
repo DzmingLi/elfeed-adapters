@@ -14,6 +14,7 @@ preserved when an adapter refreshes content.
 | Zhihu articles | =adapter:zhihu/posts/people/USER= | Browser cookies |
 | Zhihu answers | =adapter:zhihu/answers/USER= | Browser cookies |
 | Douban broadcasts | =adapter:douban/people/USER/status= | Browser cookies for full personal topics |
+| Douban direct replies | =adapter:douban/notifications/replies= | Browser cookies |
 | GCORES talks | =adapter:gcores/users/USER/talks= | None |
 | NetEase Music events | =adapter:netease-music/user/events/USER= | None |
 | Telegram channels | =adapter:telegram/channel/CHANNEL= | None |
@@ -32,6 +33,10 @@ Douban URLs accept the optional =filterout_title= query parameter as an Emacs
 regular expression.  NetEase Music song shares include the official outchain
 player, song metadata, and a visible play link for readers such as SHR that do
 not render iframes.
+
+The Douban reply source turns each direct comment reply to the logged-in user
+into one Elfeed entry containing the specific comment and a source link.  It
+does not import likes, follows, or unrelated comments on a participated post.
 
 * Installation
 
