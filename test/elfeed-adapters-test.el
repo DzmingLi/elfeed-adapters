@@ -254,13 +254,41 @@
                  (funcall callback nil
                           (elfeed-adapters-test--fixture
                            "douban/personal-topic.html")))))
-      (elfeed-adapters-douban--enrich-topics
+      (elfeed-adapters-douban--enrich-cards
        (list wrapper) (lambda (value) (setq result value))))
     (let ((html (elfeed-adapters-douban--status-html
                  (plist-get (car result) :status))))
       (should (string-match-p "完整正文" html))
       (should (string-match-p "与自己，与外界" html))
       (should-not (string-match-p "截断摘要" html)))))
+
+(ert-deftest elfeed-adapters-douban-expands-public-review-without-cookies ()
+  (require 'elfeed-adapters-douban)
+  (let ((wrapper
+         '(:status
+           (:id "102" :text "" :card
+            (:type "review"
+             :url "https://book.douban.com/review/17756318/"
+             :subtitle "截断书评…"))))
+        result)
+    (cl-letf (((symbol-function 'browser-cookies-header)
+               (lambda (&rest _arguments)
+                 (ert-fail "Public reviews must not require browser cookies")))
+              (elfeed-adapters-request-function
+               (lambda (url callback headers)
+                 (should (equal url
+                                "https://book.douban.com/review/17756318/"))
+                 (should-not (assoc-string "Cookie" headers t))
+                 (funcall callback nil
+                          (elfeed-adapters-test--fixture
+                           "douban/review.html")))))
+      (elfeed-adapters-douban--enrich-cards
+       (list wrapper) (lambda (value) (setq result value))))
+    (let ((html (elfeed-adapters-douban--status-html
+                 (plist-get (car result) :status))))
+      (should (string-match-p "书评的完整第一段" html))
+      (should (string-match-p "书评的完整末段" html))
+      (should-not (string-match-p "截断书评" html)))))
 
 (ert-deftest elfeed-adapters-gcores-parses-rich-content ()
   (require 'elfeed-adapters-gcores)
@@ -343,11 +371,14 @@
                      "The End of Reading Is Here"))
       (should (equal (plist-get item :authors) '("Rose Horowitch")))
       (should (equal (plist-get item :date) "2026-07-08T09:55:00Z"))
+      (should (string-prefix-p "<h1>The End of Reading Is Here</h1>"
+                               (plist-get item :content)))
       (should (string-match-p "https://cdn.theatlantic.com/lead.jpg"
                               (plist-get item :content)))
       (should (string-match-p
-               "<hr><p class=\"dropcap\"><strong>Second section</strong>"
-               (plist-get item :content))))))
+               "<p class=\"dropcap\"><strong>Second section</strong>"
+               (plist-get item :content)))
+      (should-not (string-match-p "<hr>" (plist-get item :content))))))
 
 (ert-deftest elfeed-adapters-theatlantic-makes-dropcap-sections-portable ()
   (require 'elfeed-adapters-theatlantic)
@@ -355,14 +386,17 @@
                 "theatlantic/article.html"))
          (normalized
           (elfeed-adapters-theatlantic--section-html html)))
-    (should (= (length (split-string normalized "<hr>")) 3))
+    (should-not (string-match-p "<hr>" normalized))
     (should (string-match-p
              "<p class=\"dropcap\"><strong>Opening words</strong>"
              normalized))
     (should (string-match-p
-             "<hr><p class=\"dropcap\"><strong>Second section</strong>"
+             "<p class=\"dropcap\"><strong>Second section</strong>"
              normalized))
-    (should-not (string-match-p "class=\"smallcaps\"" normalized))))
+    (should-not (string-match-p "class=\"smallcaps\"" normalized))
+    (should (equal (elfeed-adapters-theatlantic--section-html
+                    "<p>Before</p><hr class=\"author\"><p>After</p>")
+                   "<p>Before</p><hr class=\"author\"><p>After</p>"))))
 
 (ert-deftest elfeed-adapters-zhihu-reads-browser-cookies-and-full-content ()
   (require 'elfeed-adapters-zhihu)

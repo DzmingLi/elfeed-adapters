@@ -6,8 +6,8 @@
 ;;; Commentary:
 
 ;; Consume The Atlantic's official full-content author Atom feeds directly.
-;; Lead images come from media:content, while site-specific drop-cap sections
-;; are converted to portable HTML during the same fetch.
+;; Article titles and lead images are added to the body, while site-specific
+;; small-caps spans are converted to portable HTML during the same fetch.
 
 ;;; Code:
 
@@ -30,23 +30,12 @@
 (defun elfeed-adapters-theatlantic--section-html (html)
   "Make Atlantic drop-cap sections in HTML visible to simple readers.
 
-The first drop-cap paragraph is the article opening.  Prepend an HTML
-horizontal rule to each later one, corresponding to Org's `-----' separator,
-and render the site's small-caps span as portable strong emphasis."
-  (let ((first t)
-        (result (or html "")))
-    (setq result
-          (replace-regexp-in-string
-           "<p class=\"dropcap\">"
-           (lambda (opening)
-             (if first
-                 (progn (setq first nil) opening)
-               (concat "<hr>" opening)))
-           result t t))
-    (replace-regexp-in-string
-     "<span class=\"smallcaps\">\\([^<]*\\)</span>"
-     "<strong>\\1</strong>"
-     result t)))
+Render the site's small-caps span as portable strong emphasis.  Consecutive
+drop-cap sections remain ordinary paragraphs without inserted separators."
+  (replace-regexp-in-string
+   "<span class=\"smallcaps\">\\([^<]*\\)</span>"
+   "<strong>\\1</strong>"
+   (or html "") t))
 
 (defun elfeed-adapters-theatlantic--text (node)
   "Return trimmed text contained by DOM NODE."
@@ -93,6 +82,11 @@ and render the site's small-caps span as portable strong emphasis."
      (xml-escape-string image-url)
      (xml-escape-string (or title "The Atlantic")))))
 
+(defun elfeed-adapters-theatlantic--title-html (title)
+  "Return article heading markup for TITLE."
+  (when (and title (not (string-empty-p title)))
+    (format "<h1>%s</h1>" (xml-escape-string title))))
+
 (defun elfeed-adapters-theatlantic--item (entry)
   "Convert an Atlantic Atom ENTRY to a normalized adapter item."
   (let* ((title
@@ -120,6 +114,7 @@ and render the site's small-caps span as portable strong emphasis."
           (elfeed-adapters-theatlantic--child entry 'updated)))
      :authors (and author (list author))
      :content (concat
+               (elfeed-adapters-theatlantic--title-html title)
                (elfeed-adapters-theatlantic--image-html title image-url)
                content)
      :content-type 'html)))

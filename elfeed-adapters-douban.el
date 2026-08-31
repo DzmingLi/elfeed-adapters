@@ -6,8 +6,8 @@
 ;;; Commentary:
 
 ;; Consume the public Douban mobile timeline API directly.  When a broadcast
-;; links to a personal topic, use the configured browser session to replace
-;; the API's truncated card subtitle with the full web article.
+;; links to a personal topic or public review, replace the API's truncated
+;; card subtitle with the full web article.
 
 ;;; Code:
 
@@ -92,6 +92,19 @@
                 url))
       url)))
 
+(defun elfeed-adapters-douban--review-url (status)
+  "Return the public review URL linked by STATUS, if any."
+  (let* ((card (plist-get status :card))
+         (url (plist-get card :url)))
+    (when (and (equal (plist-get card :type) "review")
+               (stringp url)
+               (string-match-p
+                (rx string-start "https://"
+                    (or "book" "movie") ".douban.com/review/"
+                    (+ digit) "/" string-end)
+                url))
+      url)))
+
 (defun elfeed-adapters-douban--headers (url)
   "Build browser-authenticated headers for Douban URL."
   (when-let* ((cookie
@@ -112,32 +125,50 @@
           (dom-print content)
           (buffer-string))))))
 
-(defun elfeed-adapters-douban--enrich-topics (wrappers callback)
-  "Fetch full personal-topic bodies in WRAPPERS, then call CALLBACK.
+(defun elfeed-adapters-douban--extract-review-html (html)
+  "Extract the full public review body from Douban HTML."
+  (with-temp-buffer
+    (insert html)
+    (let* ((document (libxml-parse-html-region (point-min) (point-max)))
+           (content (car (dom-by-class document "review-content"))))
+      (when content
+        (with-temp-buffer
+          (dom-print content)
+          (buffer-string))))))
 
-Failure to expand an individual topic leaves its API subtitle intact."
+(defun elfeed-adapters-douban--enrich-cards (wrappers callback)
+  "Fetch full topic and review bodies in WRAPPERS, then call CALLBACK.
+
+Failure to expand an individual card leaves its API subtitle intact."
   (let* ((jobs
           (delq nil
                 (mapcar
                  (lambda (wrapper)
-                   (when-let* ((status (plist-get wrapper :status))
-                               (topic-url
-                                (elfeed-adapters-douban--topic-url status))
-                               (headers
-                                (elfeed-adapters-douban--headers topic-url)))
-                     (list status topic-url headers)))
+                   (when-let* ((status (plist-get wrapper :status)))
+                     (cond
+                      ((when-let* ((url
+                                    (elfeed-adapters-douban--topic-url status))
+                                   (headers
+                                    (elfeed-adapters-douban--headers url)))
+                         (list status url headers
+                               #'elfeed-adapters-douban--extract-topic-html)))
+                      ((when-let* ((url
+                                    (elfeed-adapters-douban--review-url status)))
+                         (list status url
+                               '(("Referer" . "https://www.douban.com/"))
+                               #'elfeed-adapters-douban--extract-review-html))))))
                  wrappers)))
          (pending (length jobs)))
     (if (zerop pending)
         (funcall callback wrappers)
       (dolist (job jobs)
-        (pcase-let ((`(,status ,topic-url ,headers) job))
+        (pcase-let ((`(,status ,url ,headers ,extractor) job))
         (elfeed-adapters-request
-         topic-url
+         url
          (lambda (error body)
            (unless error
              (when-let* ((full-html
-                          (elfeed-adapters-douban--extract-topic-html body)))
+                          (funcall extractor body)))
                (let ((card (plist-get status :card)))
                  (setq card (plist-put card :full-html full-html))
                  (plist-put status :card card))))
@@ -241,7 +272,7 @@ Failure to expand an individual topic leaves its API subtitle intact."
                     (first-status (plist-get (car wrappers) :status))
                     (author (plist-get first-status :author))
                     (name (or (plist-get author :name) user-id)))
-               (elfeed-adapters-douban--enrich-topics
+               (elfeed-adapters-douban--enrich-cards
                 wrappers
                 (lambda (enriched)
                   (let* ((items (mapcar #'elfeed-adapters-douban--item enriched))
