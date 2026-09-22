@@ -5,13 +5,11 @@
 
 ;;; Commentary:
 
-;; Fetch Zhihu articles and answers directly.  Cookies are read at request
-;; time from an explicitly configured browser profile; they are never copied
-;; into configuration files or persisted by this package.
+;; Fetch Zhihu articles and answers directly.  Cookies are obtained at request
+;; time through an explicitly configured function.
 
 ;;; Code:
 
-(require 'browser-cookies)
 (require 'json)
 (require 'seq)
 (require 'subr-x)
@@ -26,15 +24,11 @@
   :group 'elfeed-adapters
   :prefix "elfeed-adapters-zhihu-")
 
-(defcustom elfeed-adapters-zhihu-browser 'firefox
-  "Browser backend used to read the Zhihu session."
-  :type '(choice (const firefox) (const chromium) (const chrome)
-                 (const brave) (const edge) (const vivaldi))
-  :group 'elfeed-adapters-zhihu)
-
-(defcustom elfeed-adapters-zhihu-profile-directory nil
-  "Explicit browser profile directory containing the Zhihu session."
-  :type '(choice (const :tag "Not configured" nil) directory)
+(defcustom elfeed-adapters-zhihu-cookie-function nil
+  "Function used to obtain cookies for a URL.
+The function receives one absolute HTTP(S) URL and returns an alist of
+(NAME . VALUE) string pairs in transmission order."
+  :type '(choice (const :tag "Not configured" nil) function)
   :group 'elfeed-adapters-zhihu)
 
 (defun elfeed-adapters-zhihu--match (url)
@@ -55,10 +49,10 @@
           :user-id (match-string 1 url)))))
 
 (defun elfeed-adapters-zhihu--cookies (url)
-  "Read the browser cookies applicable to Zhihu URL."
-  (browser-cookies-get
-   url :browser elfeed-adapters-zhihu-browser
-   :profile-directory elfeed-adapters-zhihu-profile-directory))
+  "Read the cookies applicable to Zhihu URL."
+  (unless (functionp elfeed-adapters-zhihu-cookie-function)
+    (user-error "elfeed-adapters-zhihu-cookie-function is not configured"))
+  (funcall elfeed-adapters-zhihu-cookie-function url))
 
 (defun elfeed-adapters-zhihu--headers (url referer)
   "Build authenticated and signed request headers for URL and REFERER."

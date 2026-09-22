@@ -261,13 +261,12 @@
 
 (ert-deftest elfeed-adapters-douban-posts-a-reply-with-cookies-and-csrf ()
   (require 'elfeed-adapters-douban)
-  (let ((elfeed-adapters-douban-profile-directory "/firefox/profile")
+  (let ((elfeed-adapters-douban-cookie-function
+         (lambda (_url)
+           '(("dbcl2" . "\"42:session\"")
+             ("ck" . "csrf-token"))))
         captured result)
-    (cl-letf (((symbol-function 'browser-cookies-get)
-               (lambda (_url &rest _arguments)
-                 '(("dbcl2" . "\"42:session\"")
-                   ("ck" . "csrf-token"))))
-              (elfeed-adapters-douban-post-function
+    (cl-letf ((elfeed-adapters-douban-post-function
                (lambda (url body callback headers)
                  (setq captured (list url body headers))
                  (funcall callback nil
@@ -314,15 +313,12 @@
 
 (ert-deftest elfeed-adapters-douban-fetches-specific-direct-replies-only ()
   (require 'elfeed-adapters-douban)
-  (let ((elfeed-adapters-douban-profile-directory "/firefox/profile")
+  (let ((elfeed-adapters-douban-cookie-function
+         (lambda (url)
+           (should (equal url "https://www.douban.com/reply_notify/"))
+           '(("dbcl2" . "\"42:session\"") ("ck" . "csrf"))))
         requests result)
-    (cl-letf (((symbol-function 'browser-cookies-get)
-               (lambda (url &rest arguments)
-                 (should (equal url "https://www.douban.com/reply_notify/"))
-                 (should (equal (plist-get arguments :profile-directory)
-                                "/firefox/profile"))
-                 '(("dbcl2" . "\"42:session\"") ("ck" . "csrf"))))
-              (elfeed-adapters-request-function
+    (cl-letf ((elfeed-adapters-request-function
                (lambda (url callback headers)
                  (push (cons url headers) requests)
                  (should (assoc-string "Cookie" headers t))
@@ -356,9 +352,12 @@
         (should-not (string-match-p "赞了你的广播"
                                     (plist-get item :content)))))))
 
-(ert-deftest elfeed-adapters-douban-expands-personal-topic-with-browser-cookies ()
+(ert-deftest elfeed-adapters-douban-expands-personal-topic-with-cookies ()
   (require 'elfeed-adapters-douban)
-  (let ((elfeed-adapters-douban-profile-directory "/explicit/firefox/profile")
+  (let ((elfeed-adapters-douban-cookie-function
+         (lambda (url)
+           (should (equal url "https://www.douban.com/topic/498511065/"))
+           '(("dbcl2" . "test"))))
         (wrapper
          '(:status
            (:id "101" :text "" :card
@@ -366,13 +365,7 @@
              :url "https://www.douban.com/topic/498511065/"
              :subtitle "截断摘要…"))))
         result)
-    (cl-letf (((symbol-function 'browser-cookies-header)
-               (lambda (url &rest arguments)
-                 (should (equal url "https://www.douban.com/topic/498511065/"))
-                 (should (equal (plist-get arguments :profile-directory)
-                                "/explicit/firefox/profile"))
-                 "dbcl2=test"))
-              (elfeed-adapters-request-function
+    (cl-letf ((elfeed-adapters-request-function
                (lambda (_url callback headers)
                  (should (equal (cdr (assoc-string "Cookie" headers t))
                                 "dbcl2=test"))
@@ -396,9 +389,9 @@
              :url "https://book.douban.com/review/17756318/"
              :subtitle "截断书评…"))))
         result)
-    (cl-letf (((symbol-function 'browser-cookies-header)
+    (cl-letf ((elfeed-adapters-douban-cookie-function
                (lambda (&rest _arguments)
-                 (ert-fail "Public reviews must not require browser cookies")))
+                 (ert-fail "Public reviews must not require cookies")))
               (elfeed-adapters-request-function
                (lambda (url callback headers)
                  (should (equal url
@@ -523,17 +516,14 @@
                     "<p>Before</p><hr class=\"author\"><p>After</p>")
                    "<p>Before</p><hr class=\"author\"><p>After</p>"))))
 
-(ert-deftest elfeed-adapters-zhihu-reads-browser-cookies-and-full-content ()
+(ert-deftest elfeed-adapters-zhihu-reads-cookies-and-full-content ()
   (require 'elfeed-adapters-zhihu)
   (let ((requests nil)
-        (elfeed-adapters-zhihu-profile-directory "/explicit/firefox/profile")
+        (elfeed-adapters-zhihu-cookie-function
+         (lambda (_url)
+           '(("d_c0" . "dc0-value") ("z_c0" . "login-value"))))
         result)
-    (cl-letf (((symbol-function 'browser-cookies-get)
-               (lambda (_url &rest arguments)
-                 (should (equal (plist-get arguments :profile-directory)
-                                "/explicit/firefox/profile"))
-                 '(("d_c0" . "dc0-value") ("z_c0" . "login-value"))))
-              ((symbol-function 'zhihu--zse-request-headers)
+    (cl-letf (((symbol-function 'zhihu--zse-request-headers)
                (lambda (_url _body dc0)
                  (should (equal dc0 "dc0-value"))
                  '(("x-zse-93" . "test") ("x-zse-96" . "test"))))

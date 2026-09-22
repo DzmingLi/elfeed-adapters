@@ -48,13 +48,13 @@ Add the repository and its root directory to =load-path=, then enable the core:
 
 #+begin_src emacs-lisp
 (require 'elfeed-adapters)
+(require 'firefox-cookies)
 
-(setq elfeed-adapters-zhihu-profile-directory
+(setq firefox-cookies-profile-directory
       (expand-file-name "mozilla/firefox/default" "~/.config/"))
 
-(setq elfeed-adapters-douban-browser 'firefox
-      elfeed-adapters-douban-profile-directory
-      (expand-file-name "mozilla/firefox/default" "~/.config/"))
+(setq elfeed-adapters-zhihu-cookie-function #'firefox-cookies-get
+      elfeed-adapters-douban-cookie-function #'firefox-cookies-get)
 
 (elfeed-adapters-mode 1)
 #+end_src
@@ -102,7 +102,7 @@ library then registers itself.  The registry does not need a central edit.
 
 Adapters are modules within the single =elfeed-adapters= package, not separate
 packages.  A genuinely reusable facility, such as reading credentials from a
-browser profile, belongs in a separate package such as =browser-cookies=.
+browser profile, belongs in a separate package such as =firefox-cookies=.
 
 * Development
 

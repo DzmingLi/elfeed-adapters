@@ -27,7 +27,6 @@
             packageRequires = [
               epkgs.elfeed
               epkgs.elpaDevelPackages.plz
-              epkgs.browser-cookies
               epkgs.zhihu
             ];
             turnCompilationWarningToError = true;
@@ -44,7 +43,6 @@
           emacs = epkgs.emacsWithPackages (_: [
             epkgs.elfeed
             epkgs.elpaDevelPackages.plz
-            epkgs.browser-cookies
             epkgs.zhihu
           ]);
         in {
@@ -86,7 +84,6 @@
               (epkgs.emacsWithPackages (_: [
                 epkgs.elfeed
                 epkgs.elpaDevelPackages.plz
-                epkgs.browser-cookies
                 epkgs.zhihu
               ]))
               pkgs.gnumake

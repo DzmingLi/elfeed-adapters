@@ -13,7 +13,6 @@
 
 ;;; Code:
 
-(require 'browser-cookies)
 (require 'dom)
 (require 'json)
 (require 'message)
@@ -35,16 +34,18 @@
   :group 'elfeed-adapters
   :prefix "elfeed-adapters-douban-")
 
-(defcustom elfeed-adapters-douban-browser 'firefox
-  "Browser backend used to read the Douban session."
-  :type '(choice (const firefox) (const chromium) (const chrome)
-                 (const brave) (const edge) (const vivaldi))
+(defcustom elfeed-adapters-douban-cookie-function nil
+  "Function used to obtain cookies for a URL.
+The function receives one absolute HTTP(S) URL and returns an alist of
+(NAME . VALUE) string pairs in transmission order."
+  :type '(choice (const :tag "Not configured" nil) function)
   :group 'elfeed-adapters-douban)
 
-(defcustom elfeed-adapters-douban-profile-directory nil
-  "Explicit browser profile directory containing the Douban session."
-  :type '(choice (const :tag "Not configured" nil) directory)
-  :group 'elfeed-adapters-douban)
+(defun elfeed-adapters-douban--cookies (url)
+  "Read the cookies applicable to Douban URL."
+  (unless (functionp elfeed-adapters-douban-cookie-function)
+    (user-error "elfeed-adapters-douban-cookie-function is not configured"))
+  (funcall elfeed-adapters-douban-cookie-function url))
 
 (defvar elfeed-adapters-douban-post-function
   #'elfeed-adapters-douban--plz-post
@@ -131,12 +132,12 @@ receives (ERROR BODY).  Bind this in tests instead of publishing a comment.")
       url)))
 
 (defun elfeed-adapters-douban--headers (url)
-  "Build browser-authenticated headers for Douban URL."
-  (when-let* ((cookie
-               (browser-cookies-header
-                url :browser elfeed-adapters-douban-browser
-                :profile-directory elfeed-adapters-douban-profile-directory)))
-    `(("Cookie" . ,cookie)
+  "Build cookie-authenticated headers for Douban URL."
+  (when-let* ((cookies (elfeed-adapters-douban--cookies url)))
+    `(("Cookie" . ,(mapconcat
+                     (lambda (cookie)
+                       (format "%s=%s" (car cookie) (cdr cookie)))
+                     cookies "; "))
       ("Referer" . "https://www.douban.com/"))))
 
 (defun elfeed-adapters-douban--notification-session ()
@@ -145,10 +146,7 @@ receives (ERROR BODY).  Bind this in tests instead of publishing a comment.")
 Signal an error when the configured browser profile has no usable Douban
 session."
   (let* ((url "https://www.douban.com/reply_notify/")
-         (cookies
-          (browser-cookies-get
-           url :browser elfeed-adapters-douban-browser
-           :profile-directory elfeed-adapters-douban-profile-directory))
+         (cookies (elfeed-adapters-douban--cookies url))
          (dbcl2 (cdr (assoc-string "dbcl2" cookies t)))
          (csrf-token (cdr (assoc-string "ck" cookies t)))
          (user-id
